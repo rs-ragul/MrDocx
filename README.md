@@ -45,9 +45,9 @@ You need a MinGW-w64 toolchain (`x86_64-w64-mingw32-gcc/g++/windres`, GCC 12+).
 On Debian/Ubuntu: `sudo apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`.
 
 ```bash
-cd build
-make -f Makefile.engine -j8   # builds libpdfengine.a (MuPDF + zlib + libjpeg + FreeType)
-make -f Makefile.app          # links ../bin/MrDocx.exe
+mkdir -p build && cd build
+make -f ../makefiles/Makefile.engine -j8   # builds libpdfengine.a (MuPDF + zlib + libjpeg + FreeType)
+make -f ../makefiles/Makefile.app          # links ../bin/MrDocx.exe
 ```
 
 The engine makefile compiles a deliberately slim MuPDF configuration

@@ -1,9 +1,11 @@
-include flags.inc
+include ../makefiles/flags.inc
 OBJDIR = ../obj/engine
 
 FITZ_SRCS := $(filter-out $(MU)/source/fitz/load-jbig2.c $(MU)/source/fitz/filter-jbig2.c \
   $(MU)/source/fitz/load-jpx.c $(MU)/source/fitz/encode-jpx.c $(MU)/source/fitz/load-jxr.c \
-  $(MU)/source/fitz/out-svg.c $(MU)/source/fitz/brotli.c $(MU)/source/fitz/memento.c $(MU)/source/fitz/output-docx.c $(MU)/source/fitz/out-pptx.c $(MU)/source/fitz/out-xlsx.c, $(wildcard $(MU)/source/fitz/*.c))
+  $(MU)/source/fitz/out-svg.c $(MU)/source/fitz/brotli.c $(MU)/source/fitz/memento.c \
+  $(MU)/source/fitz/output-docx.c $(MU)/source/fitz/out-pptx.c $(MU)/source/fitz/out-xlsx.c, \
+  $(wildcard $(MU)/source/fitz/*.c))
 PDF_SRCS  := $(wildcard $(MU)/source/pdf/*.c)
 FONT_SRCS := $(wildcard $(MU)/generated/resources/fonts/urw/*.c)
 ZLIB_SRCS := $(wildcard $(MU)/thirdparty/zlib/*.c)
@@ -37,7 +39,7 @@ OBJS := $(patsubst %.c,$(OBJDIR_MU)/%.o,$(notdir $(ALL_MU))) \
 libpdfengine.a: $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
-$(OBJDIR)/engine-stubs.o: engine-stubs.c
+$(OBJDIR)/engine-stubs.o: ../makefiles/engine-stubs.c
 	@mkdir -p $(OBJDIR)
 	$(CC) $(ENGINE_CFLAGS) -c $< -o $@
 

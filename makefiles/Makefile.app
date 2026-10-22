@@ -1,4 +1,4 @@
-include flags.inc
+include ../makefiles/flags.inc
 OBJDIR = ../obj/app
 TARGET = ../bin/MrDocx.exe
 
@@ -20,7 +20,7 @@ $(OBJDIR)/%.o: ../src/%.cpp
 	@mkdir -p $(OBJDIR)
 	$(CXX) $(APP_CXXFLAGS) -c $< -o $@
 
-$(RC_OBJ): ../res/app.rc ../res/app.ico ../res/app.manifest
+$(RC_OBJ): ../res/app.rc ../res/app.ico ../res/app.manifest ../res/logo.png
 	@mkdir -p $(OBJDIR)
 	$(WRC) -I ../res -O coff -o $@ $<
 

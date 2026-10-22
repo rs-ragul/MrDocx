@@ -11,6 +11,7 @@
 #endif
 
 APP_ICON_ID     ICON     "app.ico"
+LOGO_PNG        RCDATA   "logo.png"
 APP_MANIFEST_ID RT_MANIFEST "app.manifest"
 
 VS_VERSION_INFO VERSIONINFO

@@ -573,3 +573,56 @@ HICON buildIconHICON(IconId id, int size, COLORREF fg, COLORREF bg, bool rounded
     ReleaseDC(nullptr, screen);
     return icon;
 }
+
+// =====================================================================
+//  embedded PNG logo
+// =====================================================================
+namespace logo {
+
+static GpImage*  g_img = nullptr;
+static IStream*  g_stream = nullptr;   // must outlive the image
+static bool      g_tried = false;
+
+static GpImage* get()
+{
+    if (g_tried) return g_img;
+    g_tried = true;
+    HRSRC rs = FindResourceW(nullptr, L"LOGO_PNG", RT_RCDATA);
+    if (!rs) return nullptr;
+    DWORD n = SizeofResource(nullptr, rs);
+    HGLOBAL res = LoadResource(nullptr, rs);
+    if (!res || !n) return nullptr;
+    const void* p = LockResource(res);
+    if (!p) return nullptr;
+    HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, n);
+    if (!mem) return nullptr;
+    void* m = GlobalLock(mem);
+    memcpy(m, p, n);
+    GlobalUnlock(mem);
+    if (CreateStreamOnHGlobal(mem, TRUE, &g_stream) != S_OK) { GlobalFree(mem); g_stream = nullptr; return nullptr; }
+    GpImage* img = nullptr;
+    if (Gdiplus::DllExports::GdipLoadImageFromStream(g_stream, &img) != Gdiplus::Ok || !img) {
+        if (img) Gdiplus::DllExports::GdipDisposeImage(img);
+        g_stream->Release(); g_stream = nullptr;
+        return nullptr;
+    }
+    g_img = img;
+    return g_img;
+}
+
+bool available() { return get() != nullptr; }
+
+void draw(HDC dc, RECT r)
+{
+    GpImage* img = get();
+    if (!img) return;
+    GpGraphics* g = nullptr;
+    if (Gdiplus::DllExports::GdipCreateFromHDC(dc, &g) != Gdiplus::Ok) return;
+    Gdiplus::DllExports::GdipSetInterpolationMode(g, Gdiplus::InterpolationModeHighQualityBicubic);
+    Gdiplus::DllExports::GdipSetSmoothingMode(g, Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::DllExports::GdipSetPixelOffsetMode(g, Gdiplus::PixelOffsetModeHalf);
+    Gdiplus::DllExports::GdipDrawImageRectI(g, img, r.left, r.top, r.right - r.left, r.bottom - r.top);
+    Gdiplus::DllExports::GdipDeleteGraphics(g);
+}
+
+} // namespace logo

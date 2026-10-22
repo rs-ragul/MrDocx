@@ -225,6 +225,7 @@ struct AppState {
 
     int  categoryFilter = -1;     // -1 = all tools
     int  homeScroll = 0;
+    int  aboutScroll = 0;
     int  toolScroll = 0;
     int  toolScrollRange = 0;
     int  organiserScroll = 0;

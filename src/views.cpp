@@ -193,7 +193,9 @@ void paintSidebar(Frame& f, RECT area)
     int y = area.top + S(14);
     int plate = S(32);
     RECT logo = { area.left + S(16), y, area.left + S(16) + plate, y + plate };
-    {
+    if (logo::available()) {
+        logo::draw(f.dc, logo);
+    } else {
         // rounded accent plate with the merge glyph
         ui::fillGradient(f.dc, logo, RGBv(0x3A, 0x66, 0xFF), RGBv(0x2A, 0x46, 0xD8), true, S(9));
         int is = S(19);
@@ -577,81 +579,129 @@ void paintHome(Frame& f, RECT area)
 // ---------------------------------------------------------------------
 void paintAbout(Frame& f, RECT area)
 {
+    AppState& a = app();
     int padX = S(32);
     int maxW = S(760);
     int contentW = std::min<int>((int)(area.right - area.left - padX * 2), maxW);
     int cx = area.left + (area.right - area.left - contentW) / 2;
-    int y = area.top + S(28);
+
+    // scroll: consume the wheel against last frame's measured height
+    static int aboutRange = 0;
+    if (f.wheelDelta) {
+        int step = std::max<int>(S(48), (area.bottom - area.top) / 6);
+        a.aboutScroll = util::clampv<int>(a.aboutScroll - (f.wheelDelta / 120) * step,
+                                           0, aboutRange);
+        f.wheelDelta = 0;
+    }
+    int y0 = area.top + S(28) - a.aboutScroll;
+    int y = y0;
 
     // brand panel
     RECT hero = { cx, y, cx + contentW, y + S(132) };
     ui::fillGradient(f.dc, hero, f.pal.dark ? RGBv(0x1B, 0x25, 0x45) : RGBv(0xEE, 0xF2, 0xFF),
                      f.pal.surface, true, S(14));
     ui::strokeRect(f.dc, hero, f.pal.border, S(14), 1);
-    int plate = S(52);
-    RECT lr = { hero.left + S(26), hero.top + (hero.bottom - hero.top - plate) / 2,
-                hero.left + S(26) + plate, 0 };
+    int plate = S(64);
+    RECT lr = { hero.left + S(24), hero.top + (hero.bottom - hero.top - plate) / 2,
+                hero.left + S(24) + plate, 0 };
     lr.bottom = lr.top + plate;
-    ui::fillGradient(f.dc, lr, RGBv(0x3A, 0x66, 0xFF), RGBv(0x27, 0x3F, 0xC4), true, S(14));
-    int is = S(30);
-    drawIcon(f.dc, ICON_LAYERS, RECT{ lr.left + (plate - is) / 2, lr.top + (plate - is) / 2,
-             lr.left + (plate + is) / 2, lr.top + (plate + is) / 2 }, RGB(255, 255, 255), (float)S(2));
+    if (logo::available()) logo::draw(f.dc, lr);
+    else ui::fillGradient(f.dc, lr, RGBv(0x3A, 0x66, 0xFF), RGBv(0x27, 0x3F, 0xC4), true, S(14));
     int tx = lr.right + S(18);
-    ui::drawText(f.dc, L"MrDocx", RECT{ tx, hero.top + S(30), hero.right - S(24), hero.top + S(60) },
+    ui::drawText(f.dc, L"MrDocx", RECT{ tx, hero.top + S(18), hero.right - S(24), hero.top + S(48) },
                  f.pal.text, fontUI(22, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    ui::drawText(f.dc, L"Version " APP_VERSION L"  \u00B7  64-bit  \u00B7  offline PDF toolbox for Windows",
-                 RECT{ tx, hero.top + S(60), hero.right - S(24), hero.top + S(84) }, f.pal.textDim,
+    ui::drawText(f.dc, L"Version " APP_VERSION L"  \u00B7  64-bit  \u00B7  offline document toolbox for Windows",
+                 RECT{ tx, hero.top + S(50), hero.right - S(24), hero.top + S(74) }, f.pal.textDim,
                  fontUI(12), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     ui::drawText(f.dc, L"Designed and built by Ragul S",
-                 RECT{ tx, hero.top + S(84), hero.right - S(24), hero.top + S(106) }, f.pal.textFaint,
+                 RECT{ tx, hero.top + S(76), hero.right - S(24), hero.top + S(100) }, f.pal.textFaint,
                  fontUI(11, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     y = hero.bottom + S(20);
 
+    // the card chrome is painted in the draw pass from rects captured in a
+    // measure pass, so the whole body is built twice, exactly like the tools
     Cards c;
-    auto card = [&](const std::wstring& title, int step, std::function<void()> body) {
-        CardScope cs = cardBegin(f, c, title, step, L"", S(14));
-        body();
-        cardEnd(f, c, cs);
-    };
+    auto buildBody = [&](bool measure) {
+        f.measure = measure;
+        c.idx = 0;
+        if (measure) c.rects.clear();
+        ui::beginColumn(f, cx, y, contentW, 1 << 20, 0);
 
-    card(L"What this is", 0, [&] {
-        ui::label(f, L"MrDocx is a native Win32 desktop application. Every pixel is drawn with GDI \u2014 there is no browser, no webview and no internet connection involved.", 13, f.pal.textDim, FW_NORMAL, 0, true);
-        ui::label(f, L"Your documents are opened, processed and written on this machine only. Nothing is uploaded anywhere, ever.", 13, f.pal.textDim, FW_NORMAL, 0, true);
-    });
-
-    card(L"Keyboard shortcuts", 0, [&] {
-        struct Row { const wchar_t* k; const wchar_t* v; };
-        static const Row rows[] = {
-            { L"Alt + \u2190", L"Back to all tools" },
-            { L"Ctrl + O", L"Add files to the current tool" },
-            { L"Ctrl + R", L"Run the current tool" },
-            { L"Ctrl + A", L"Select every page in the organiser" },
-            { L"Delete", L"Remove the selected pages" },
-            { L"R / Shift + R", L"Rotate selected pages" },
-            { L"Ctrl + D", L"Switch between light and dark" },
-            { L"Esc", L"Cancel the running job" },
+        auto card = [&](const std::wstring& title, std::function<void()> body) {
+            CardScope cs = cardBegin(f, c, title, 0, L"", S(14));
+            body();
+            cardEnd(f, c, cs);
         };
-        for (auto& r : rows) {
-            ui::beginRow(f, f.top().x, f.top().y, f.top().w, S(26), 0);
-            RECT kr = ui::takeRect(f, S(150), S(24));
-            ui::fillRect(f.dc, kr, f.pal.surfaceAlt, S(6));
-            ui::strokeRect(f.dc, kr, f.pal.border, S(6), 1);
-            ui::drawText(f.dc, r.k, kr, f.pal.text, fontUI(11, FW_SEMIBOLD), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            RECT vr = ui::takeRect(f, f.top().w - S(150), S(24));
-            ui::drawText(f.dc, r.v, vr, f.pal.textDim, fontUI(12), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-            ui::endLayout(f);
-        }
-    });
 
-    card(L"Credits and licence", 0, [&] {
-        ui::label(f, L"PDF engine: MuPDF 1.26.4 by Artifex Software, used under the GNU Affero General Public License v3. The complete source of this application and of the engine is distributed with it.", 13, f.pal.textDim, FW_NORMAL, 0, true);
-        ui::label(f, L"Font rendering: FreeType. Compression: zlib. JPEG codec: libjpeg. UI: hand-written Win32 + GDI/GDI+.", 13, f.pal.textDim, FW_NORMAL, 0, true);
-        ui::layoutGap(f, S(4));
-        ui::label(f, L"MrDocx \u00A9 2026 Ragul S. Because MuPDF is AGPL, MrDocx is distributed with its source; keep the source available if you redistribute the binary.", 12, f.pal.textFaint, FW_NORMAL, 0, true);
-    });
+        card(L"What this is", [&] {
+            ui::label(f, L"MrDocx is a native Win32 desktop application. Every pixel is drawn with GDI \u2014 there is no browser, no webview and no internet connection involved.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+            ui::label(f, L"Your documents are opened, processed and written on this machine only. Nothing is uploaded anywhere, ever.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+        });
 
-    int contentH = f.top().y - area.top;
-    (void)contentH;
+        card(L"About the author", [&] {
+            ui::label(f, L"MrDocx is designed and built by Ragul S \u2014 RS Creations Tech. Click a link to open it in your browser.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+            struct Lk { const wchar_t* t; const wchar_t* u; };
+            static const Lk lks[] = {
+                { L"\u00BB  Website   \u2014  rscreationstech.vercel.app/about", L"https://rscreationstech.vercel.app/about" },
+                { L"\u00BB  GitHub    \u2014  github.com/rs-ragul",              L"https://github.com/rs-ragul" },
+                { L"\u00BB  LinkedIn  \u2014  linkedin.com/in/ragul-rs",         L"https://www.linkedin.com/in/ragul-rs/" },
+            };
+            for (size_t i = 0; i < _countof(lks); i++) {
+                ui::beginRow(f, f.top().x, f.top().y, f.top().w, S(28), 0);
+                RECT rr = ui::takeRect(f, f.top().w, S(26));
+                WidgetHit h = ui::hitTest(f, 9310 + (int)i, rr);
+                if (h.hovered) {
+                    ui::fillRect(f.dc, rr, f.pal.surfaceAlt, S(6));
+                    SetCursor(LoadCursorW(nullptr, IDC_HAND));
+                }
+                ui::drawText(f.dc, lks[i].t, RECT{ rr.left + S(8), rr.top, rr.right, rr.bottom },
+                             h.hovered ? f.pal.accent : f.pal.text, fontUI(12, FW_SEMIBOLD),
+                             DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                if (h.clicked)
+                    ShellExecuteW(f.hwnd, L"open", lks[i].u, nullptr, nullptr, SW_SHOWNORMAL);
+                ui::endLayout(f);
+            }
+        });
+
+        card(L"Keyboard shortcuts", [&] {
+            struct Row { const wchar_t* k; const wchar_t* v; };
+            static const Row rows[] = {
+                { L"Alt + \u2190", L"Back to all tools" },
+                { L"Ctrl + O", L"Add files to the current tool" },
+                { L"Ctrl + R", L"Run the current tool" },
+                { L"Ctrl + A", L"Select every page in the organiser" },
+                { L"Delete", L"Remove the selected pages" },
+                { L"R / Shift + R", L"Rotate selected pages" },
+                { L"Ctrl + D", L"Switch between light and dark" },
+                { L"Esc", L"Cancel the running job" },
+            };
+            for (auto& r : rows) {
+                ui::beginRow(f, f.top().x, f.top().y, f.top().w, S(26), 0);
+                RECT kr = ui::takeRect(f, S(150), S(24));
+                ui::fillRect(f.dc, kr, f.pal.surfaceAlt, S(6));
+                ui::strokeRect(f.dc, kr, f.pal.border, S(6), 1);
+                ui::drawText(f.dc, r.k, kr, f.pal.text, fontUI(11, FW_SEMIBOLD), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                RECT vr = ui::takeRect(f, f.top().w - S(150), S(24));
+                ui::drawText(f.dc, r.v, vr, f.pal.textDim, fontUI(12), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                ui::endLayout(f);
+            }
+        });
+
+        card(L"Credits and licence", [&] {
+            ui::label(f, L"PDF engine: MuPDF 1.26.4 by Artifex Software, used under the GNU Affero General Public License v3. The complete source of this application and of the engine is distributed with it.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+            ui::label(f, L"Font rendering: FreeType. Compression: zlib. JPEG codec: libjpeg. UI: hand-written Win32 + GDI/GDI+.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+            ui::layoutGap(f, S(4));
+            ui::label(f, L"MrDocx \u00A9 2026 Ragul S. Because MuPDF is AGPL, MrDocx is distributed with its source; keep the source available if you redistribute the binary.", 12, f.pal.textFaint, FW_NORMAL, 0, true);
+        });
+
+        RECT used = ui::endLayout(f);
+        f.measure = false;
+        if (measure)
+            aboutRange = std::max<int>(0, (int)used.bottom - y0 + S(28) - (area.bottom - area.top));
+    };
+    buildBody(true);
+    buildBody(false);
+    aboutRange = std::max(0, aboutRange);
 }
 
 } // namespace views

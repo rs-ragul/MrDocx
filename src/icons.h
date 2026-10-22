@@ -102,3 +102,9 @@ void drawIconAt(HDC dc, IconId id, int x, int y, int size, COLORREF color, float
 
 // Build an HICON (for the taskbar / window icon / exe resource fallback)
 HICON buildIconHICON(IconId id, int size, COLORREF fg, COLORREF bg, bool roundedBg);
+
+// Embedded raster logo (res/logo.png, RCDATA). Alpha-preserving, GDI+.
+namespace logo {
+    bool available();
+    void draw(HDC dc, RECT r);
+}
