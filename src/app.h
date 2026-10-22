@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  app.h : application state, tool catalogue, job runner
+//  MrDocx  -  app.h : application state, tool catalogue, job runner
 //  Author : Ragul S
 // =====================================================================
 #pragma once
@@ -19,7 +19,8 @@
 enum class ToolId {
     Merge = 0, Split, Compress, Organise, Rotate, RemovePages, ExtractPages,
     Watermark, PageNumbers, Protect, Unlock, Repair, Flatten,
-    PdfToImage, ImageToPdf, PdfToText, PdfToHtml, PdfToWord, WordToPdf, Metadata,
+    PdfToImage, ImageToPdf, PdfToText, PdfToHtml, PdfToWord, WordToPdf,
+    ImageConvert, TextToPdf, PdfToMarkdown, Metadata,
     COUNT
 };
 
@@ -29,7 +30,8 @@ enum class InputKind {
     OneOrMorePdf,  // one or more PDFs, each processed separately
     Images,        // image files
     PdfSingleOrMulti,
-    SingleDocx     // one Word .docx document
+    SingleDocx,    // one Word .docx document
+    SingleText     // one .txt / .md document
 };
 
 enum class Category { Organise, Optimise, Convert, Secure, Edit };
@@ -94,6 +96,11 @@ struct ToolState {
 
     // images -> pdf
     pdf::ImageToPdfOptions img2pdf;
+
+    // image converter
+    bool imgConvToPng = false;
+    int  imgConvQuality = 85;
+    int  imgConvMaxPx = 0;      // 0 = original size
 
     // text export
     bool pageBreaks = true;

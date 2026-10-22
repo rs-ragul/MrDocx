@@ -1,119 +1,76 @@
-# PDFForge
+# MrDocx
 
-**Every PDF tool you need, in one offline Windows app.**
-Built by **Ragul S**.
+**Every document tool you need. Offline. Forever.**
 
-PDFForge is a native Win32 application — no browser, no web view, no Electron,
-no installer service, no account. It bundles the MuPDF rendering engine and
-does all of its work on your machine: a file you open never leaves your PC,
-because there is nowhere for it to go.
+MrDocx is a native Windows desktop app that packs **23 document tools** into one
+fast, keyboard-friendly window: merge, split, organise, compress, convert,
+watermark, protect PDFs — plus Word ⇄ PDF, images ⇄ PDF, text/Markdown → PDF and
+PDF → Markdown. No webview, no browser, no uploads, no accounts, no telemetry.
+Every file is processed on your machine and never leaves it.
+
+Built with plain Win32 C++ and the MuPDF engine. One `.exe`, no installer required
+(an Inno Setup script is included if you want one).
+
+> Author: **Ragul S** — v1.1.0
 
 ---
 
-## What it does
-
-Eighteen tools behind one home screen, grouped into five categories:
+## The tools
 
 | Category | Tools |
 |---|---|
-| **Organise** | Merge PDFs · Split · Organise (rotate / reorder / delete pages) · Rotate · Remove pages · Extract pages |
-| **Optimise** | Compress (4 levels) · Repair |
-| **Convert** | PDF → JPG / PNG · JPG / PNG → PDF · PDF → Text · PDF → HTML |
-| **Secure** | Protect (AES-128/256 passwords & permissions) · Unlock |
-| **Edit** | Watermark · Page numbers · Flatten forms & annotations · Metadata |
+| **Organise** | Merge PDF · Split PDF · Organise PDF (visual page grid: reorder, rotate, delete) · Rotate PDF · Remove Pages · Extract Pages |
+| **Optimise** | Compress PDF · Repair PDF |
+| **Edit** | Watermark · Page Numbers · Flatten PDF · Edit Properties (metadata) |
+| **Convert** | PDF → Image · Images → PDF · PDF → Text · PDF → HTML · PDF → Word (.docx) · Word (.docx) → PDF · **Convert Images** (JPG/PNG/BMP/TIFF/GIF → JPG/PNG with quality + resize) · **Text / Markdown → PDF** · **PDF → Markdown** |
+| **Secure** | Protect PDF (encrypt) · Unlock PDF |
 
-### Small things that make it pleasant
+Every tool shows a live preview where it matters: the organiser renders real page
+thumbnails, the file list reads page counts/sizes in a background thread, and jobs
+run on a worker thread with progress and cancel.
 
-* **Drag & drop anywhere** in the window; dropped images open the
-  image→PDF tool automatically, dropped PDFs open Merge.
-* **No save dialog before you run.** PDFForge picks a sensible output name
-  next to the source file (`report (compressed).pdf`) and shows a result bar
-  with *Open*, *Open folder* and *Save as* afterwards.
-* **Page organiser** with real rendered thumbnails, click / Ctrl-click
-  selection, per-page rotation and delete, and a zoom slider.
-* **Passwords are asked for inline** with a styled dialog, never a console.
-* **Light and dark themes**, per-monitor DPI aware, keyboard friendly
-  (Tab cycles focus, Enter runs, Esc backs out, Ctrl+O adds files,
-  Ctrl+Enter runs, F1 opens About).
-* **Single instance**: opening a second copy forwards its files to the first.
-* Jobs run on a background thread with a progress bar and a **Cancel** button;
-  closing the window while a job runs asks first.
+## Download / install
 
----
+- **Just run it:** grab `MrDocx-1.1.0-windows-x64.zip` from Releases, unzip,
+  double-click `MrDocx.exe`. That is the whole installation.
+- **Installer:** build `installer/MrDocx.iss` with Inno Setup 6 for a proper
+  Start-menu / Add-Remove-Programs install.
+- **From source:** see below.
 
-## Building it
+Requirements: Windows 10/11 x64. Nothing else — the exe is fully static.
 
-You need a MinGW-w64 UCRT toolchain (`x86_64-w64-mingw32ucrt-g++`) and GNU make.
+## Building from source
 
-```sh
+You need a MinGW-w64 toolchain (`x86_64-w64-mingw32-gcc/g++/windres`, GCC 12+).
+On Debian/Ubuntu: `sudo apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`.
+
+```bash
 cd build
-make -f Makefile.engine     # builds libpdfengine.a  (MuPDF subset, ~285 objects)
-make -f Makefile.app        # builds ../bin/PDFForge.exe
-make -f Makefile.app strip  # optional: strip symbols
+make -f Makefile.engine -j8   # builds libpdfengine.a (MuPDF + zlib + libjpeg + FreeType)
+make -f Makefile.app          # links ../bin/MrDocx.exe
 ```
 
-### Installing (optional - it is portable)
+The engine makefile compiles a deliberately slim MuPDF configuration
+(no JS, no XPS/SVG/EPUB/HTML engine, no JPX/JBIG2/JXR codecs — clean stubs throw a
+clear "not supported in this build" error instead), which keeps the exe near 5 MB.
 
-`PDFForge.exe` needs **no installation**: copy it anywhere and double-click it.
-Settings (theme, window position, output folder) are stored per user in
-`HKCU\Software\PDFForge`, and nothing else on the system is touched.
+## Honest notes
 
-If you prefer a classic install (Start Menu entry, an *Add or remove programs*
-entry, optional desktop icon and an "Open with PDFForge" verb for PDFs),
-build the bundled Inno Setup script with the free Inno Setup 6:
-
-```sh
-iscc installer\PDFForge.iss      # -> installer\output\PDFForgeSetup-1.0.0.exe
-```
-
-The output is a **single self-contained `PDFForge.exe`** (≈6.8 MB): the C++
-runtime is linked statically and the only DLLs it loads are the ones that ship
-with Windows (user32, gdi32, gdiplus, comctl32, …). Copy it to any
-Windows 10/11 x64 machine and run it.
-
-### Source layout
-
-```
-src/common.h      product metadata, Win32 includes, DPI + registry settings
-src/theme.h       light/dark palettes, font cache
-src/icons.h/.cpp  vector icon geometry, drawn with GDI+
-src/ui.h          the immediate-mode widget toolkit
-src/ui_layout.cpp layout stack, rounded fills, shadows, gradients
-src/ui_widgets.cpp buttons, fields, combos, sliders, lists, scrollbars
-src/ui_helpers.cpp popup menus, message box, password input box
-src/pdfengine.*   MuPDF facade: every PDF operation, one thread-local context
-src/app.h/.cpp    tool table, app state, thumbnail cache, job runner
-src/views*.cpp    the home / tool / about views
-src/main.cpp      window, custom frame, input, message loop, dialogs
-res/              icon, version info, per-monitor-DPI manifest
-build/            Makefiles and the vendored engine build
-third_party/      vendored MuPDF subset (see THIRD-PARTY.md)
-```
-
-### Design notes
-
-* The UI is **immediate mode**: one `Frame` struct, one paint per message,
-  widget state (text, focus, drags) kept between frames. Two layout passes
-  (measure → draw) give cards their height; scrolling is manual and clipped.
-* The title bar, sidebar, scrollbars and every control are hand-drawn with
-  GDI/GDI+ into a double buffer. `WM_NCCALCSIZE` removes the stock caption and
-  `WM_NCHITTEST` hands back `HTCAPTION` / resize edges so dragging, Aero Snap
-  and resizing still behave like a normal window.
-* One **thread-local `fz_context`** per thread; the UI thread never blocks on
-  PDF work — jobs post progress and completion messages back.
-
----
+- **Word ⇄ PDF** is a text-fidelity converter (paragraphs, headings, bold/italic/
+  underline, sizes, colours, page breaks). It does not replicate every Word layout
+  feature (tables, floating images, SmartArt) — that level of fidelity requires
+  licensed server-side engines; MrDocx stays fully offline instead.
+- Scanned PDFs have no text layer, so PDF → Text/Word/Markdown will say so plainly
+  instead of returning blank pages. OCR is intentionally not bundled.
+- JPEG2000 / JPEG-XR / JBIG2 images inside PDFs are not decoded (codec-free build);
+  everything else — PNG, JPG, TIFF, GIF, BMP — works.
 
 ## Licence
 
-PDFForge itself is © 2026 **Ragul S**.
+MrDocx statically links MuPDF, therefore the whole project is distributed under
+**GNU AGPL-3.0**. See `THIRD-PARTY.md` and the licence files under
+`third_party/mupdf/`.
 
-It links **MuPDF 1.26.4**, which is licensed under the **GNU Affero General
-Public Licence v3** (see `third_party/mupdf/LICENSE.mupdf.AGPL-3.0.txt`).
-Consequently this whole project is distributed under the AGPL-3.0: the complete
-corresponding source — including this repository and the vendored engine — is
-available from the same place you obtained the program. See `THIRD-PARTY.md`
-for every bundled component and its licence.
+## Credits
 
-JPEG2000 and JBIG2 codecs are intentionally **not** built in; documents using
-them report a clear "unsupported" error instead of silently mis-rendering.
+Designed and built by **Ragul S**. PDF engine: MuPDF 1.26.4 (Artifex).

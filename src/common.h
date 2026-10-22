@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  offline PDF toolbox for Windows
+//  MrDocx  -  offline PDF toolbox for Windows
 //  common.h  :  project-wide defines, string/path helpers, DPI scaling
 //
 //  Author : Ragul S
@@ -48,14 +48,14 @@
 // ---------------------------------------------------------------------
 // Product identity
 // ---------------------------------------------------------------------
-#define APP_NAME        L"PDFForge"
-#define APP_NAME_A      "PDFForge"
-#define APP_VERSION     L"1.0.0"
+#define APP_NAME        L"MrDocx"
+#define APP_NAME_A      "MrDocx"
+#define APP_VERSION     L"1.1.0"
 #define APP_AUTHOR      L"Ragul S"
-#define APP_TAGLINE     L"Every PDF tool you need. Offline. Forever."
-#define APP_CLASS       L"PDFForgeMainWindow"
-#define APP_MUTEX       L"PDFForge_SingleInstance_Mutex_RagulS"
-#define APP_REGKEY      L"Software\\PDFForge"
+#define APP_TAGLINE     L"Every document tool you need. Offline. Forever."
+#define APP_CLASS       L"MrDocxMainWindow"
+#define APP_MUTEX       L"MrDocx_SingleInstance_Mutex_RagulS"
+#define APP_REGKEY      L"Software\\MrDocx"
 
 // ---------------------------------------------------------------------
 // Custom window messages

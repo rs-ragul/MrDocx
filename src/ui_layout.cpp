@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  ui.cpp : immediate-mode widget toolkit (GDI/GDI+)
+//  MrDocx  -  ui.cpp : immediate-mode widget toolkit (GDI/GDI+)
 //  Author : Ragul S
 // =====================================================================
 #include "ui.h"

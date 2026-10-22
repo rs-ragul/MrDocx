@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  views.cpp : title bar, sidebar, home grid, about
+//  MrDocx  -  views.cpp : title bar, sidebar, home grid, about
 //  Author : Ragul S
 // =====================================================================
 #include "cards.h"
@@ -145,7 +145,7 @@ void paintTitleBar(Frame& f, RECT area)
                  back.left + (S(28) + is) / 2, back.top + (S(28) + is) / 2 }, f.pal.textDim);
         a.btnBack = back;
         x += S(34);
-        ui::drawText(f.dc, L"About PDFForge", RECT{ x, area.top, area.right - S(200), area.bottom },
+        ui::drawText(f.dc, L"About MrDocx", RECT{ x, area.top, area.right - S(200), area.bottom },
                      f.pal.titleText, fontUI(13, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     } else {
         a.btnBack = RECT{ 0, 0, 0, 0 };
@@ -203,7 +203,7 @@ void paintSidebar(Frame& f, RECT area)
     int tx = logo.right + S(11);
     ui::drawText(f.dc, APP_NAME, RECT{ tx, y - S(1), tx + w - S(30), y + S(18) }, f.pal.sidebarText,
                  fontUI(15, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    ui::drawText(f.dc, L"offline PDF toolbox", RECT{ tx, y + S(16), tx + w - S(30), y + S(32) },
+    ui::drawText(f.dc, L"offline document toolbox", RECT{ tx, y + S(16), tx + w - S(30), y + S(32) },
                  f.pal.sidebarTextDim, fontUI(10), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     y += plate + S(18);
 
@@ -282,7 +282,7 @@ void paintSidebar(Frame& f, RECT area)
         COLORREF fg = act ? f.pal.sidebarActiveText : (hit.hovered ? f.pal.sidebarText : f.pal.sidebarTextDim);
         int is = S(15);
         drawIcon(f.dc, ICON_INFO, RECT{ r.left + S(10), r.top + (hh - is) / 2, r.left + S(10) + is, r.top + (hh + is) / 2 }, fg, (float)std::max(1, S(2)));
-        ui::drawText(f.dc, L"About PDFForge", RECT{ r.left + S(10) + is + S(11), r.top, r.right - S(8), r.bottom },
+        ui::drawText(f.dc, L"About MrDocx", RECT{ r.left + S(10) + is + S(11), r.top, r.right - S(8), r.bottom },
                      fg, fontUI(13, act ? FW_SEMIBOLD : FW_NORMAL), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         if (hit.clicked) { a.view = ViewId::About; postRepaint(); }
         fy += hh + S(6);
@@ -300,8 +300,28 @@ static bool toolMatchesSearch(const ToolDef& t, const std::wstring& q)
 {
     if (q.empty()) return true;
     std::wstring lq = util::lower(q);
-    auto has = [&](const wchar_t* s) { return s && util::lower(s).find(lq) != std::wstring::npos; };
-    return has(t.name) || has(t.blurb) || has(t.hint) || has(categoryName(t.category));
+    std::wstring hay = util::lower(t.name);
+    hay += L" "; hay += util::lower(t.blurb);
+    hay += L" "; hay += util::lower(t.hint);
+    hay += L" "; hay += util::lower(categoryName(t.category));
+    // multi-word queries: every token must appear somewhere in the haystack
+    std::vector<std::wstring> toks;
+    size_t i = 0;
+    while (i < lq.size()) {
+        while (i < lq.size() && lq[i] == L' ') i++;
+        size_t j = i;
+        while (j < lq.size() && lq[j] != L' ') j++;
+        if (j > i) toks.push_back(lq.substr(i, j - i));
+        i = j;
+    }
+    if (toks.size() > 1) {
+        // tiny words like "to", "a" would match almost everything
+        toks.erase(std::remove_if(toks.begin(), toks.end(),
+                   [](const std::wstring& tk) { return tk.size() < 3; }), toks.end());
+    }
+    if (toks.empty()) return hay.find(lq) != std::wstring::npos;
+    for (auto& tk : toks) if (hay.find(tk) == std::wstring::npos) return false;
+    return true;
 }
 
 void paintHome(Frame& f, RECT area)
@@ -346,7 +366,7 @@ void paintHome(Frame& f, RECT area)
         int hx = hero.left + S(28);
         int hy = hero.top + S(24);
         if (!f.measure) {
-            ui::drawText(f.dc, L"Every PDF tool you need. All offline.",
+            ui::drawText(f.dc, L"Every document tool you need. All offline.",
                          RECT{ hx, hy, hero.right - S(120), hy + S(34) }, f.pal.text,
                          fontUI(a.dark ? 23 : 24, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
             ui::drawText(f.dc,
@@ -529,7 +549,7 @@ void paintHome(Frame& f, RECT area)
     if (!f.measure) {
         RECT fr = { cx, y, cx + contentW, y + S(46) };
         ui::drawText(f.dc,
-                     util::fmt(L"%d tools  \u00B7  PDFForge %s  \u00B7  built by Ragul S  \u00B7  PDF engine: MuPDF (AGPL-3.0)",
+                     util::fmt(L"%d tools  \u00B7  MrDocx %s  \u00B7  built by Ragul S  \u00B7  PDF engine: MuPDF (AGPL-3.0)",
                                (int)allTools().size(), APP_VERSION),
                      fr, f.pal.textFaint, fontUI(11), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         y = fr.bottom + S(20);
@@ -577,7 +597,7 @@ void paintAbout(Frame& f, RECT area)
     drawIcon(f.dc, ICON_LAYERS, RECT{ lr.left + (plate - is) / 2, lr.top + (plate - is) / 2,
              lr.left + (plate + is) / 2, lr.top + (plate + is) / 2 }, RGB(255, 255, 255), (float)S(2));
     int tx = lr.right + S(18);
-    ui::drawText(f.dc, L"PDFForge", RECT{ tx, hero.top + S(30), hero.right - S(24), hero.top + S(60) },
+    ui::drawText(f.dc, L"MrDocx", RECT{ tx, hero.top + S(30), hero.right - S(24), hero.top + S(60) },
                  f.pal.text, fontUI(22, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     ui::drawText(f.dc, L"Version " APP_VERSION L"  \u00B7  64-bit  \u00B7  offline PDF toolbox for Windows",
                  RECT{ tx, hero.top + S(60), hero.right - S(24), hero.top + S(84) }, f.pal.textDim,
@@ -595,7 +615,7 @@ void paintAbout(Frame& f, RECT area)
     };
 
     card(L"What this is", 0, [&] {
-        ui::label(f, L"PDFForge is a native Win32 desktop application. Every pixel is drawn with GDI \u2014 there is no browser, no webview and no internet connection involved.", 13, f.pal.textDim, FW_NORMAL, 0, true);
+        ui::label(f, L"MrDocx is a native Win32 desktop application. Every pixel is drawn with GDI \u2014 there is no browser, no webview and no internet connection involved.", 13, f.pal.textDim, FW_NORMAL, 0, true);
         ui::label(f, L"Your documents are opened, processed and written on this machine only. Nothing is uploaded anywhere, ever.", 13, f.pal.textDim, FW_NORMAL, 0, true);
     });
 
@@ -627,7 +647,7 @@ void paintAbout(Frame& f, RECT area)
         ui::label(f, L"PDF engine: MuPDF 1.26.4 by Artifex Software, used under the GNU Affero General Public License v3. The complete source of this application and of the engine is distributed with it.", 13, f.pal.textDim, FW_NORMAL, 0, true);
         ui::label(f, L"Font rendering: FreeType. Compression: zlib. JPEG codec: libjpeg. UI: hand-written Win32 + GDI/GDI+.", 13, f.pal.textDim, FW_NORMAL, 0, true);
         ui::layoutGap(f, S(4));
-        ui::label(f, L"PDFForge \u00A9 2026 Ragul S. Because MuPDF is AGPL, PDFForge is distributed with its source; keep the source available if you redistribute the binary.", 12, f.pal.textFaint, FW_NORMAL, 0, true);
+        ui::label(f, L"MrDocx \u00A9 2026 Ragul S. Because MuPDF is AGPL, MrDocx is distributed with its source; keep the source available if you redistribute the binary.", 12, f.pal.textFaint, FW_NORMAL, 0, true);
     });
 
     int contentH = f.top().y - area.top;

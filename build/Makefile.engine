@@ -1,0 +1,67 @@
+include flags.inc
+OBJDIR = ../obj/engine
+
+FITZ_SRCS := $(filter-out $(MU)/source/fitz/load-jbig2.c $(MU)/source/fitz/filter-jbig2.c \
+  $(MU)/source/fitz/load-jpx.c $(MU)/source/fitz/encode-jpx.c $(MU)/source/fitz/load-jxr.c \
+  $(MU)/source/fitz/out-svg.c $(MU)/source/fitz/brotli.c $(MU)/source/fitz/memento.c $(MU)/source/fitz/output-docx.c $(MU)/source/fitz/out-pptx.c $(MU)/source/fitz/out-xlsx.c, $(wildcard $(MU)/source/fitz/*.c))
+PDF_SRCS  := $(wildcard $(MU)/source/pdf/*.c)
+FONT_SRCS := $(wildcard $(MU)/generated/resources/fonts/urw/*.c)
+ZLIB_SRCS := $(wildcard $(MU)/thirdparty/zlib/*.c)
+JPEG_SRCS := $(filter-out $(MU)/thirdparty/libjpeg/example.c $(MU)/thirdparty/libjpeg/rdjpgcom.c \
+  $(MU)/thirdparty/libjpeg/wrjpgcom.c $(MU)/thirdparty/libjpeg/jmemdos.c \
+  $(MU)/thirdparty/libjpeg/jmemmac.c $(MU)/thirdparty/libjpeg/jmemname.c \
+  $(MU)/thirdparty/libjpeg/jmemw32.c, $(wildcard $(MU)/thirdparty/libjpeg/*.c))
+
+FT := $(MU)/thirdparty/freetype/src
+FT_SRCS := \
+ $(FT)/base/ftbase.c $(FT)/base/ftinit.c $(FT)/base/ftsystem.c $(FT)/base/ftdebug.c \
+ $(FT)/base/ftglyph.c $(FT)/base/ftbbox.c $(FT)/base/ftbitmap.c $(FT)/base/ftfstype.c \
+ $(FT)/base/ftgasp.c $(FT)/base/ftstroke.c $(FT)/base/ftsynth.c $(FT)/base/fttype1.c \
+ $(FT)/base/ftcid.c \
+ $(FT)/cff/cff.c $(FT)/cid/type1cid.c $(FT)/psaux/psaux.c \
+ $(FT)/pshinter/pshinter.c $(FT)/psnames/psnames.c $(FT)/raster/raster.c \
+ $(FT)/smooth/smooth.c $(FT)/sfnt/sfnt.c $(FT)/truetype/truetype.c $(FT)/type1/type1.c
+
+ALL_MU := $(FITZ_SRCS) $(PDF_SRCS) $(FONT_SRCS)
+OBJDIR_MU = $(OBJDIR)/mu
+OBJDIR_Z  = $(OBJDIR)/z
+OBJDIR_J  = $(OBJDIR)/j
+OBJDIR_F  = $(OBJDIR)/f
+
+OBJS := $(patsubst %.c,$(OBJDIR_MU)/%.o,$(notdir $(ALL_MU))) \
+        $(patsubst %.c,$(OBJDIR_Z)/%.o,$(notdir $(ZLIB_SRCS))) \
+        $(patsubst %.c,$(OBJDIR_J)/%.o,$(notdir $(JPEG_SRCS))) \
+        $(patsubst %.c,$(OBJDIR_F)/%.o,$(notdir $(FT_SRCS))) \
+        $(OBJDIR)/engine-stubs.o
+
+libpdfengine.a: $(OBJS)
+	$(AR) rcs $@ $(OBJS)
+
+$(OBJDIR)/engine-stubs.o: engine-stubs.c
+	@mkdir -p $(OBJDIR)
+	$(CC) $(ENGINE_CFLAGS) -c $< -o $@
+
+$(OBJDIR_MU)/%.o:
+	@mkdir -p $(OBJDIR_MU)
+	$(eval SRC := $(firstword $(filter %/$*.c,$(ALL_MU))))
+	@echo "CC  $(notdir $*)"
+	@case "$(SRC)" in \
+	  */skew.c)   $(CC) $(ENGINE_CFLAGS) -mssse3 -c "$(SRC)" -o $@ ;; \
+	  */deskew.c) $(CC) $(ENGINE_CFLAGS) -msse4.1 -c "$(SRC)" -o $@ ;; \
+	  *)          $(CC) $(ENGINE_CFLAGS) -c "$(SRC)" -o $@ ;; \
+	esac
+
+$(OBJDIR_Z)/%.o:
+	@mkdir -p $(OBJDIR_Z)
+	$(eval SRC := $(firstword $(filter %/$*.c,$(ZLIB_SRCS))))
+	@$(CC) $(ZLIB_CFLAGS) -c "$(SRC)" -o $@
+
+$(OBJDIR_J)/%.o:
+	@mkdir -p $(OBJDIR_J)
+	$(eval SRC := $(firstword $(filter %/$*.c,$(JPEG_SRCS))))
+	@$(CC) $(JPEG_CFLAGS) -c "$(SRC)" -o $@
+
+$(OBJDIR_F)/%.o:
+	@mkdir -p $(OBJDIR_F)
+	$(eval SRC := $(firstword $(filter %/$*.c,$(FT_SRCS))))
+	@$(CC) $(FT_CFLAGS) -c "$(SRC)" -o $@

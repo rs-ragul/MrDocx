@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  ui_widgets.cpp : the widget set
+//  MrDocx  -  ui_widgets.cpp : the widget set
 //  Author : Ragul S
 // =====================================================================
 #include "ui.h"

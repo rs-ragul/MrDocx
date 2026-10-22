@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  icons.cpp : vector icon geometry + GDI renderer
+//  MrDocx  -  icons.cpp : vector icon geometry + GDI renderer
 //  Author : Ragul S
 // =====================================================================
 #include "icons.h"

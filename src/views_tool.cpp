@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  views_tool.cpp : the working view of every tool
+//  MrDocx  -  views_tool.cpp : the working view of every tool
 //  Author : Ragul S
 // =====================================================================
 #include "cards.h"
@@ -167,7 +167,7 @@ static void drawDropZone(Frame& f, RECT r, const ToolDef& def, bool highlight)
 
     if ((btn.clicked || (zone.clicked && !btn.clicked)) && !f.measure) {
         std::vector<std::wstring> files;
-        int kind0 = def.input == InputKind::Images ? 1 : def.input == InputKind::SingleDocx ? 2 : 0;
+        int kind0 = def.input == InputKind::Images ? 1 : def.input == InputKind::SingleDocx ? 2 : def.input == InputKind::SingleText ? 3 : 0;
         if (pickFilesDialog(f.hwnd, files, kind0)) addFilesToCurrentTool(files);
     }
 }
@@ -193,7 +193,7 @@ static void drawFileRows(Frame& f, ToolState& st, const ToolDef& def)
     ui::endLayout(f);
     if (add.clicked && !f.measure) {
         std::vector<std::wstring> more;
-        int kind1 = def.input == InputKind::Images ? 1 : def.input == InputKind::SingleDocx ? 2 : 0;
+        int kind1 = def.input == InputKind::Images ? 1 : def.input == InputKind::SingleDocx ? 2 : def.input == InputKind::SingleText ? 3 : 0;
         if (pickFilesDialog(f.hwnd, more, kind1)) addFilesToCurrentTool(more);
         return;
     }
@@ -236,12 +236,18 @@ static void drawFileRows(Frame& f, ToolState& st, const ToolDef& def)
             std::wstring meta;
             if (def.input == InputKind::SingleDocx)
                 meta = util::fmt(L"Word document  \u00B7  %s", util::sizeText(sf.info.fileSize).c_str());
+            else if (def.input == InputKind::SingleText)
+                meta = util::fmt(L"Text document  \u00B7  %s", util::sizeText(sf.info.fileSize).c_str());
             else
-                meta =
-                (sf.infoLoaded && sf.info.valid)
-                    ? util::fmt(L"%d pages  \u00B7  %s  \u00B7  %s", sf.info.pageCount,
-                                sf.info.pageSize.c_str(), util::sizeText(sf.info.fileSize).c_str())
-                    : (sf.locked ? L"password required" : L"this file could not be opened");
+                if (!sf.infoLoaded)
+                    meta = L"Reading\u2026";
+                else if (sf.info.valid)
+                    meta = sf.info.pageCount > 0
+                        ? util::fmt(L"%d pages  \u00B7  %s  \u00B7  %s", sf.info.pageCount,
+                                    sf.info.pageSize.c_str(), util::sizeText(sf.info.fileSize).c_str())
+                        : util::fmt(L"0 pages  \u00B7  %s", util::sizeText(sf.info.fileSize).c_str());
+                else
+                    meta = sf.locked ? L"password required" : L"this file could not be opened";
             ui::drawText(f.dc, meta, RECT{ mid.left + is + S(10), mid.top + S(24), mid.right - S(6), mid.bottom - S(3) },
                          sf.locked ? f.pal.warning : f.pal.textFaint, fontUI(11),
                          DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
@@ -294,7 +300,11 @@ static void drawOrganiser(Frame& f, ToolState& st, const ToolDef& def, int idBas
     (void)def;
     ensurePagesLoaded(st);
     if (st.pages.empty()) {
-        wrappedNote(f, L"Add a PDF first and its pages will appear here, ready to rotate, reorder or delete.");
+        // an accurate empty state: no file yet, or a file that truly has no pages
+        if (st.files.empty())
+            wrappedNote(f, L"Add a PDF first and its pages will appear here, ready to rotate, reorder or delete.");
+        else
+            wrappedNote(f, L"This PDF has no pages at all, so there is nothing to arrange. A document needs at least one page before it can be reordered, rotated or trimmed.");
         return;
     }
 
@@ -641,7 +651,7 @@ static void drawToolOptions(Frame& f, ToolState& st, const ToolDef& def)
         ui::checkbox(f, oid + 106, L"Allow copying text", st.protect.allowCopying);
         ui::checkbox(f, oid + 107, L"Allow editing", st.protect.allowEditing);
         ui::checkbox(f, oid + 104, L"Use strong 256-bit AES encryption", st.protect.use256);
-        infoLine(f, st.protect.use256 ? L"AES-256, the strongest option PDFForge offers."
+        infoLine(f, st.protect.use256 ? L"AES-256, the strongest option MrDocx offers."
                                       : L"128-bit AES \u2014 compatible with very old readers.");
         break;
     }
@@ -650,7 +660,7 @@ static void drawToolOptions(Frame& f, ToolState& st, const ToolDef& def)
         beginFieldRow(f, L"Password");
         ui::textField(f, oid + 110, st.unlockPassword, S(300), L"the document password", true);
         endFieldRow(f);
-        wrappedNote(f, L"PDFForge removes the password so the file opens freely. Only unlock documents you are allowed to.");
+        wrappedNote(f, L"MrDocx removes the password so the file opens freely. Only unlock documents you are allowed to.");
         break;
     }
 
@@ -730,6 +740,26 @@ static void drawToolOptions(Frame& f, ToolState& st, const ToolDef& def)
         break;
     }
 
+    case ToolId::ImageConvert: {
+        beginFieldRow(f, L"Format");
+        int fmt = st.imgConvToPng ? 1 : 0;
+        ui::combo(f, oid + 180, { L"JPG  \u00B7 small, great for photos", L"PNG  \u00B7 lossless, bigger" }, fmt, S(260));
+        st.imgConvToPng = (fmt == 1);
+        endFieldRow(f);
+        if (!st.imgConvToPng) {
+            beginFieldRow(f, L"Quality");
+            ui::slider(f, oid + 181, st.imgConvQuality, 40, 100, S(240));
+            endFieldRow(f);
+            infoLine(f, util::fmt(L"JPEG quality %d%% - lower means smaller files.", st.imgConvQuality), ICON_TO_IMAGE);
+        }
+        beginFieldRow(f, L"Max size");
+        int mxIdx = st.imgConvMaxPx == 0 ? 0 : st.imgConvMaxPx == 2000 ? 1 : st.imgConvMaxPx == 1500 ? 2 : 3;
+        ui::combo(f, oid + 182, { L"Original resolution", L"2000 px on the long edge", L"1500 px on the long edge", L"1000 px on the long edge" }, mxIdx, S(260));
+        static const int mxVal[4] = { 0, 2000, 1500, 1000 };
+        st.imgConvMaxPx = mxVal[util::clampv<int>(mxIdx, 0, 3)];
+        endFieldRow(f);
+        break;
+    }
     case ToolId::Compress: {
         beginFieldRow(f, L"Level");
         int lv = (int)st.compress;
@@ -840,7 +870,8 @@ static void drawOutputCard(Frame& f, ToolState& st, const ToolDef& def)
     if (!def.multiOut && !st.files.empty()) {
         const wchar_t* ext = def.id == ToolId::PdfToText ? L".txt"
                            : def.id == ToolId::PdfToHtml ? L".html"
-                           : def.id == ToolId::PdfToWord ? L".docx" : L".pdf";
+                           : def.id == ToolId::PdfToWord ? L".docx"
+                           : def.id == ToolId::PdfToMarkdown ? L".md" : L".pdf";
         std::wstring out = defaultOutputFile(a, st, ext);
         beginFieldRow(f, L"File name");
         RECT r = ui::takeFill(f, 0);
@@ -1000,9 +1031,12 @@ static void drawActionBar(Frame& f, RECT area, ToolState& st, const ToolDef& def
     // ---- idle ---------------------------------------------------------
     bool canRun = !st.files.empty();
     if (def.input == InputKind::MultiPdf && st.files.size() < 2) canRun = false;
+    if (def.usesOrganiser && st.pages.empty()) canRun = false;   // 0-page PDF: nothing to save
     if (!canRun && !f.measure) {
-        ui::drawText(f.dc, def.input == InputKind::MultiPdf ? L"Add at least two files to continue"
-                                                            : L"Add a file to continue",
+        const wchar_t* hint = def.input == InputKind::MultiPdf ? L"Add at least two files to continue"
+                            : (def.usesOrganiser && !st.files.empty()) ? L"This PDF has no pages to save."
+                            : L"Add a file to continue";
+        ui::drawText(f.dc, hint,
                      RECT{ cx, area.top, cx + S(460), area.bottom }, f.pal.textFaint, fontUI(12),
                      DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
@@ -1085,7 +1119,7 @@ void paintTool(Frame& f, RECT area)
 
         // card 1: files
         {
-            CardScope cs = cardBegin(f, cards, def.input == InputKind::Images ? L"Add your images" : L"Add your PDFs", 1,
+            CardScope cs = cardBegin(f, cards, def.input == InputKind::Images ? L"Add your images" : def.input == InputKind::SingleDocx ? L"Add your Word document" : def.input == InputKind::SingleText ? L"Add your text file" : L"Add your PDFs", 1,
                                      st.files.empty() ? L"Drag and drop works anywhere in this window" : L"");
             if (st.files.empty()) {
                 RECT dz = ui::takeRect(f, 0, S(196));

@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  ui.h : immediate-mode widget toolkit drawn with GDI
+//  MrDocx  -  ui.h : immediate-mode widget toolkit drawn with GDI
 //  Every control is owner-drawn (no HTML, no webview, no themed
 //  Common Controls) so the app looks and behaves like a real Win32 app
 //  while still being modern and crisp at any DPI.

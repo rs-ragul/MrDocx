@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  main.cpp : window, custom frame, input, message loop
+//  MrDocx  -  main.cpp : window, custom frame, input, message loop
 //
 //  The whole user interface is drawn by hand with GDI/GDI+ into a
 //  double buffer.  There are no child controls, no web view and no
@@ -393,7 +393,8 @@ void openFilesDialog(HWND hwnd)
     int kind = 0;
     if (a.view == ViewId::Tool) {
         InputKind ik = toolDef(a.tool).input;
-        kind = ik == InputKind::Images ? 1 : ik == InputKind::SingleDocx ? 2 : 0;
+        kind = ik == InputKind::Images ? 1 : ik == InputKind::SingleDocx ? 2
+             : ik == InputKind::SingleText ? 3 : 0;
     }
     std::vector<std::wstring> files;
     if (!pickFilesDialog(hwnd, files, kind)) return;
@@ -442,19 +443,23 @@ bool pickFilesDialog(HWND owner, std::vector<std::wstring>& out, int kind)
     const wchar_t* docxFilter =
         L"Word documents (*.docx)\0*.docx\0"
         L"All files (*.*)\0*.*\0";
+    const wchar_t* txtFilter =
+        L"Text documents (*.txt;*.md)\0*.txt;*.md;*.markdown;*.log\0"
+        L"All files (*.*)\0*.*\0";
 
     OPENFILENAMEW ofn = {};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = owner;
     ofn.hInstance = app().instance;
-    ofn.lpstrFilter = kind == 1 ? imgFilter : kind == 2 ? docxFilter : pdfFilter;
+    ofn.lpstrFilter = kind == 1 ? imgFilter : kind == 2 ? docxFilter : kind == 3 ? txtFilter : pdfFilter;
     ofn.nFilterIndex = 1;
     ofn.lpstrFile = buf;
     ofn.nMaxFile = (DWORD)_countof(buf);
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_ALLOWMULTISELECT |
                 OFN_EXPLORER | OFN_NOCHANGEDIR | OFN_ENABLESIZING;
     ofn.lpstrTitle = kind == 1 ? L"Choose images"
-                   : kind == 2 ? L"Choose a Word document" : L"Choose PDF files";
+                   : kind == 2 ? L"Choose a Word document"
+                   : kind == 3 ? L"Choose a text file" : L"Choose PDF files";
 
     if (!GetOpenFileNameW(&ofn)) return false;
 
@@ -916,7 +921,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_CLOSE: {
         if (JobRunner::get().busy()) {
             int r = ui::appMessageBox(hwnd, L"Still working",
-                                      L"PDFForge is processing a document right now.",
+                                      L"MrDocx is processing a document right now.",
                                       L"Stop the job and close?", 2, 2);
             if (r != IDYES) return 0;
             JobRunner::get().requestCancel();
@@ -1047,7 +1052,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR cmdLine, int nCmdShow)
     wc.lpszMenuName  = nullptr;
     wc.lpszClassName = APP_CLASS;
     if (!RegisterClassExW(&wc)) {
-        MessageBoxW(nullptr, L"PDFForge could not register its window.", APP_NAME, MB_ICONERROR);
+        MessageBoxW(nullptr, L"MrDocx could not register its window.", APP_NAME, MB_ICONERROR);
         return 1;
     }
 
@@ -1073,7 +1078,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR cmdLine, int nCmdShow)
     HWND hwnd = CreateWindowExW(0, APP_CLASS, APP_NAME, style,
                                 x, y, w, h, nullptr, nullptr, hInst, nullptr);
     if (!hwnd) {
-        MessageBoxW(nullptr, L"PDFForge could not create its window.", APP_NAME, MB_ICONERROR);
+        MessageBoxW(nullptr, L"MrDocx could not create its window.", APP_NAME, MB_ICONERROR);
         return 1;
     }
 

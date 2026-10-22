@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  theme.h : colour palettes (light & dark) and fonts
+//  MrDocx  -  theme.h : colour palettes (light & dark) and fonts
 //  Author : Ragul S
 // =====================================================================
 #pragma once

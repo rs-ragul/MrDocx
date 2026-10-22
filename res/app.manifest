@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="RagulS.PDFForge" type="win32"/>
-  <description>PDFForge - every PDF tool you need, offline. Author: Ragul S</description>
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="RagulS.MrDocx" type="win32"/>
+  <description>MrDocx - every PDF tool you need, offline. Author: Ragul S</description>
 
   <dependency>
     <dependentAssembly>

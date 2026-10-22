@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  icons.h : vector glyph icons drawn with GDI
+//  MrDocx  -  icons.h : vector glyph icons drawn with GDI
 //  Every icon is defined as stroked/filled geometry on a 24x24 unit grid
 //  so it stays pixel-crisp at any DPI.  No bitmaps, no web assets.
 //

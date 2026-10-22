@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  ui_helpers.cpp : clipboard, popup menus, modal dialog
+//  MrDocx  -  ui_helpers.cpp : clipboard, popup menus, modal dialog
 //  Author : Ragul S
 // =====================================================================
 #include "ui.h"
@@ -105,7 +105,7 @@ struct MsgBoxData {
     HWND hwnd = nullptr;
 };
 
-const wchar_t* MSGBOX_CLASS = L"PDFForgeMsgBox";
+const wchar_t* MSGBOX_CLASS = L"MrDocxMsgBox";
 bool g_msgboxClassReady = false;
 
 int msgboxWidth(MsgBoxData* d)
@@ -394,7 +394,7 @@ struct InputBoxData {
     int pressBtn = -1;
 };
 
-const wchar_t* INPUTBOX_CLASS = L"PDFForgeInputBox";
+const wchar_t* INPUTBOX_CLASS = L"MrDocxInputBox";
 bool g_inputboxClassReady = false;
 
 LRESULT CALLBACK inputboxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)

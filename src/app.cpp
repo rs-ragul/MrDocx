@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  app.cpp : tool catalogue, theme, caches, job runner
+//  MrDocx  -  app.cpp : tool catalogue, theme, caches, job runner
 //  Author : Ragul S
 // =====================================================================
 #include "app.h"
@@ -17,6 +17,7 @@ Palette& currentPalette() { return g_dark_on ? g_dark : g_light; }
 bool isDarkTheme() { return g_dark_on; }
 void setDarkTheme(bool dark)
 {
+    app().dark = dark;
     g_dark_on = dark;
     settings::writeInt(L"DarkMode", dark ? 1 : 0);
     if (app().hwnd) {
@@ -134,6 +135,21 @@ static const std::vector<ToolDef>& toolTable()
           InputKind::SingleDocx, false, false,
           L"Reflows headings and paragraphs onto fresh pages." },
 
+        { ToolId::ImageConvert, L"Convert Images", L"JPG, PNG, BMP, TIFF or GIF to JPG or PNG",
+          L"Convert images", Category::Convert, ICON_TO_IMAGE, TINT(0x0E,0x74,0x90),
+          InputKind::Images, false, true,
+          L"Resize and re-encode pictures, fully offline." },
+
+        { ToolId::TextToPdf, L"Text / Markdown to PDF", L"Typeset a .txt or .md file into a clean PDF",
+          L"Create PDF", Category::Convert, ICON_TO_TEXT, TINT(0x47,0x55,0x69),
+          InputKind::SingleText, false, false,
+          L"Supports # headings, **bold** and *italic*." },
+
+        { ToolId::PdfToMarkdown, L"PDF to Markdown", L"Extract the text layer as clean Markdown",
+          L"Extract Markdown", Category::Convert, ICON_TO_HTML, TINT(0xB0,0x3A,0x2E),
+          InputKind::SinglePdf, false, false,
+          L"Headings detected from the type size, ready for notes and repos." },
+
         { ToolId::Metadata, L"Edit Properties", L"Change title, author and keywords",
           L"Save properties", Category::Edit, ICON_INFO, TINT(0x52,0x5C,0x6B),
           InputKind::SinglePdf, false, false,
@@ -228,7 +244,19 @@ void ThumbCache::workerLoop()
             queue.pop_front();
         }
 
-        pdf::BitmapData bd = pdf::renderPage(k.path, k.password, k.page, k.maxPx, true);
+        static std::wstring curPath, curPw;
+        static pdf::OpenDoc* curDoc = nullptr;
+        if (!curDoc || curPath != k.path || curPw != k.password) {
+            pdf::closeDocument(curDoc); curDoc = nullptr;
+            curDoc = pdf::openDocument(k.path, k.password);
+            curPath = k.path; curPw = k.password;
+        }
+        pdf::BitmapData bd = curDoc ? pdf::renderPageDoc(curDoc, k.page, k.maxPx, true)
+                                    : pdf::renderPage(k.path, k.password, k.page, k.maxPx, true);
+        {
+            std::lock_guard<std::mutex> g(mtx);
+            if (queue.empty()) { pdf::closeDocument(curDoc); curDoc = nullptr; curPath.clear(); curPw.clear(); }
+        }
         Entry e;
         if (bd.valid && !bd.pixels.empty()) {
             BITMAPINFO bmi = {};
@@ -389,6 +417,8 @@ static bool acceptForTool(ToolId t, const std::wstring& path)
                ext == L".pgm" || ext == L".ppm" || ext == L".psd";
     if (def.input == InputKind::SingleDocx)
         return ext == L".docx";
+    if (def.input == InputKind::SingleText)
+        return ext == L".txt" || ext == L".md" || ext == L".markdown" || ext == L".log";
     if (ext != L".pdf") return false;
     return true;
 }
@@ -413,7 +443,7 @@ void addFilesToCurrentTool(const std::vector<std::wstring>& paths)
         StagedFile sf;
         sf.path = p;
         std::wstring err;
-        if (def.input == InputKind::SingleDocx) {
+        if (def.input == InputKind::SingleDocx || def.input == InputKind::SingleText) {
             sf.infoLoaded = true;
             sf.info.valid = true;
             sf.info.fileSize = util::fileSize(p);
@@ -472,6 +502,9 @@ static std::wstring suffixFor(ToolId t)
     case ToolId::PdfToHtml:   return L"";
     case ToolId::PdfToWord:   return L"";
     case ToolId::WordToPdf:   return L"";
+    case ToolId::ImageConvert:return L"";
+    case ToolId::TextToPdf:   return L"";
+    case ToolId::PdfToMarkdown: return L"";
     case ToolId::Metadata:    return L"updated";
     default:                  return L"out";
     }
@@ -482,7 +515,7 @@ std::wstring defaultOutputDir(AppState& a, ToolState& st)
     if (a.saveToSourceFolder && !st.files.empty())
         return util::dirName(st.files.front().path);
     if (!a.lastOutDir.empty()) return a.lastOutDir;
-    return util::joinPath(util::defaultDocumentsDir(), L"PDFForge");
+    return util::joinPath(util::defaultDocumentsDir(), L"MrDocx");
 }
 
 std::wstring defaultOutputFile(AppState& a, ToolState& st, const std::wstring& ext)
@@ -494,6 +527,7 @@ std::wstring defaultOutputFile(AppState& a, ToolState& st, const std::wstring& e
     if (a.tool == ToolId::PdfToText) return util::uniquePath(util::joinPath(dir, base + L".txt"));
     if (a.tool == ToolId::PdfToHtml) return util::uniquePath(util::joinPath(dir, base + L".html"));
     if (a.tool == ToolId::PdfToWord) return util::uniquePath(util::joinPath(dir, base + L".docx"));
+    if (a.tool == ToolId::PdfToMarkdown) return util::uniquePath(util::joinPath(dir, base + L".md"));
     return util::uniquePath(util::joinPath(dir, name + ext));
 }
 
@@ -546,7 +580,7 @@ void runCurrentTool()
         for (auto& f : st.files) if (!f.password.empty()) any = true;
         if (!any) {
             ui::appMessageBox(a.hwnd, L"Password needed", L"Enter the current password.",
-                              L"PDFForge needs it to decrypt the file before saving an open copy.", 0, 2);
+                              L"MrDocx needs it to decrypt the file before saving an open copy.", 0, 2);
             return;
         }
     }
@@ -576,7 +610,7 @@ void runCurrentTool()
     std::wstring outDir = defaultOutputDir(a, st);
     if (!ensureOutputDir(outDir)) {
         ui::appMessageBox(a.hwnd, L"Cannot create folder",
-                          util::fmt(L"PDFForge cannot write to %s", outDir.c_str()),
+                          util::fmt(L"MrDocx cannot write to %s", outDir.c_str()),
                           L"Pick another output folder in Settings.", 0, 3);
         return;
     }
@@ -855,6 +889,41 @@ void runCurrentTool()
         std::wstring out = defaultOutputFile(a, st, L".pdf");
         work = [src, out](pdf::JobContext& jc) {
             return pdf::wordToPdf(src, out, jc);
+        };
+        break;
+    }
+    case ToolId::ImageConvert: {
+        std::vector<std::wstring> ins;
+        for (auto& f : files) ins.push_back(f.path);
+        bool png = st.imgConvToPng; int q = st.imgConvQuality; int mx = st.imgConvMaxPx;
+        work = [ins, png, q, mx, outDir](pdf::JobContext& jc) {
+            pdf::Result agg; agg.ok = true;
+            for (size_t i = 0; i < ins.size(); i++) {
+                if (jc.stop()) { agg.ok = false; agg.error = L"cancelled"; break; }
+                std::wstring out = util::uniquePath(util::joinPath(outDir,
+                    util::baseName(ins[i]) + (png ? L".png" : L".jpg")));
+                pdf::Result r = pdf::convertImage(ins[i], out, png, mx, q, jc);
+                if (!r.ok) { agg.ok = false; agg.error = r.error; break; }
+                agg.outputs.push_back(out);
+                agg.bytesAfter += r.bytesAfter; agg.bytesBefore += r.bytesBefore;
+            }
+            return agg;
+        };
+        break;
+    }
+    case ToolId::TextToPdf: {
+        std::wstring src = files[0].path;
+        std::wstring out = defaultOutputFile(a, st, L".pdf");
+        work = [src, out](pdf::JobContext& jc) {
+            return pdf::textToPdf(src, out, jc);
+        };
+        break;
+    }
+    case ToolId::PdfToMarkdown: {
+        std::wstring src = files[0].path, pw = files[0].password;
+        std::wstring out = defaultOutputFile(a, st, L".md");
+        work = [src, pw, out](pdf::JobContext& jc) {
+            return pdf::pdfToMarkdown(src, pw, out, jc);
         };
         break;
     }

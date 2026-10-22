@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  cards.h : the card scaffolding used by every view
+//  MrDocx  -  cards.h : the card scaffolding used by every view
 //  Author : Ragul S
 // =====================================================================
 #pragma once

@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  pdfengine.cpp : offline PDF operations
+//  MrDocx  -  pdfengine.cpp : offline PDF operations
 //  Author : Ragul S
 //
 //  Structure of every operation:
@@ -279,14 +279,44 @@ bool readPageList(const std::wstring& path, const std::wstring& password,
 // ---------------------------------------------------------------------
 // render a page to BGRA for the UI
 // ---------------------------------------------------------------------
-BitmapData renderPage(const std::wstring& path, const std::wstring& password, int pageIndex,
-                      int maxPixels, bool annotations)
+struct OpenDoc { fz_document* doc = nullptr; };
+
+OpenDoc* openDocument(const std::wstring& path, const std::wstring& password)
+{
+    fz_context* ctx = CTX();
+    if (!ctx) return nullptr;
+    OpenDoc* o = new OpenDoc();
+    std::string p = u8(path), pw = u8(password);
+    fz_try(ctx)
+    {
+        o->doc = fz_open_document(ctx, p.c_str());
+        if (fz_needs_password(ctx, o->doc)) {
+            if (pw.empty() || !fz_authenticate_password(ctx, o->doc, pw.c_str())) {
+                fz_drop_document(ctx, o->doc); o->doc = nullptr;
+            }
+        }
+    }
+    fz_catch(ctx) { if (o->doc) { fz_drop_document(ctx, o->doc); o->doc = nullptr; } }
+    if (!o->doc) { delete o; return nullptr; }
+    return o;
+}
+
+void closeDocument(OpenDoc* d)
+{
+    if (!d) return;
+    fz_context* ctx = CTX();
+    if (ctx && d->doc) fz_drop_document(ctx, d->doc);
+    delete d;
+}
+
+bool openDocValid(OpenDoc* d) { return d && d->doc; }
+
+BitmapData renderPageDoc(OpenDoc* o, int pageIndex, int maxPixels, bool annotations)
 {
     BitmapData out;
     fz_context* ctx = CTX();
-    if (!ctx) return out;
-    std::string p = u8(path), pw = u8(password);
-    fz_document* doc = nullptr;
+    if (!ctx || !o || !o->doc) return out;
+    fz_document* doc = o->doc;
     fz_page* page = nullptr;
     fz_pixmap* pix = nullptr;
     fz_device* dev = nullptr;
@@ -294,14 +324,10 @@ BitmapData renderPage(const std::wstring& path, const std::wstring& password, in
     unsigned char* samples = nullptr;
     int stride = 0, n = 0, alpha = 0;
 
-    fz_var(doc); fz_var(page); fz_var(pix); fz_var(dev);
+    fz_var(page); fz_var(pix); fz_var(dev);
     fz_var(w); fz_var(h); fz_var(samples); fz_var(stride); fz_var(n); fz_var(alpha);
     fz_try(ctx)
     {
-        doc = fz_open_document(ctx, p.c_str());
-        if (fz_needs_password(ctx, doc)) {
-            if (!pw.empty()) fz_authenticate_password(ctx, doc, pw.c_str());
-        }
         int count = fz_count_pages(ctx, doc);
         if (pageIndex < 0 || pageIndex >= count) fz_throw(ctx, FZ_ERROR_GENERIC, "page out of range");
         page = fz_load_page(ctx, doc, pageIndex);
@@ -348,8 +374,17 @@ BitmapData renderPage(const std::wstring& path, const std::wstring& password, in
     if (dev) fz_drop_device(ctx, dev);
     if (pix) fz_drop_pixmap(ctx, pix);
     if (page) fz_drop_page(ctx, page);
-    if (doc) fz_drop_document(ctx, doc);
     return out;
+}
+
+BitmapData renderPage(const std::wstring& path, const std::wstring& password, int pageIndex,
+                      int maxPixels, bool annotations)
+{
+    OpenDoc* o = openDocument(path, password);
+    if (!o) return BitmapData();
+    BitmapData bd = renderPageDoc(o, pageIndex, maxPixels, annotations);
+    closeDocument(o);
+    return bd;
 }
 
 // ---------------------------------------------------------------------
@@ -1162,7 +1197,7 @@ fz_font* loadStampFont(fz_context* ctx, const std::string& requested, std::strin
         std::string u = util::toUtf8(c);
         fz_font* f = nullptr;
         fz_var(f);
-        fz_try(ctx) { f = fz_new_font_from_file(ctx, "PDFForgeStamp", u.c_str(), 0, 0); }
+        fz_try(ctx) { f = fz_new_font_from_file(ctx, "MrDocxStamp", u.c_str(), 0, 0); }
         fz_catch(ctx) { f = nullptr; }
         if (f) { usedPath = u; return f; }
     }
@@ -1209,7 +1244,7 @@ Result stampDocument(const std::wstring& path, const std::wstring& password,
         if (pages0.empty()) { for (int i = 0; i < total; i++) sel[i] = 1; }
         else for (int p : pages0) if (p >= 0 && p < total) sel[p] = 1;
 
-        pdf_begin_operation(ctx, doc, "PDFForge stamp");
+        pdf_begin_operation(ctx, doc, "MrDocx stamp");
 
         int number = opt.pageNumStart;
         for (int i = 0; i < total; i++) {
@@ -1500,7 +1535,7 @@ Result imagesToPdf(const std::vector<std::wstring>& imagePaths, const ImageToPdf
     fz_try(ctx)
     {
         dst = pdf_create_document(ctx);
-        pdf_begin_operation(ctx, dst, "PDFForge images to pdf");
+        pdf_begin_operation(ctx, dst, "MrDocx images to pdf");
 
         for (int i = 0; i < total; i++) {
             if (jc.stop()) fz_throw(ctx, FZ_ERROR_GENERIC, "cancelled");
@@ -1684,7 +1719,7 @@ Result exportHtml(const std::wstring& path, const std::wstring& password,
             "border-radius:10px;padding:32px 40px;box-shadow:0 1px 2px rgba(16,24,40,.04)}\n"
             "article h2{font-size:12px;color:#8b94a6;text-transform:uppercase;letter-spacing:.08em;margin:0 0 16px}\n"
             "</style>\n</head>\n<body>\n<header><h1>%s</h1>"
-            "<p class=\"sub\">Extracted with PDFForge - %d pages</p></header>\n",
+            "<p class=\"sub\">Extracted with MrDocx - %d pages</p></header>\n",
             titleU8.c_str(), titleU8.c_str(), total);
 
         for (int i = 0; i < total; i++) {
@@ -1779,6 +1814,7 @@ Result setMetadata(const std::wstring& path, const std::wstring& password,
 // =====================================================================
 //  PDF <-> Word (.docx), fully offline
 //  Author : Ragul S
+
 // =====================================================================
 namespace pdf {
 namespace {
@@ -2107,74 +2143,13 @@ struct DocRun  { std::string text; bool bold = false, ital = false; float size =
 struct DocPara { std::string style; std::vector<DocRun> runs; };
 } // namespace
 
-Result wordToPdf(const std::wstring& path, const std::wstring& outPath, JobContext& jc)
+static bool layoutParas(fz_context* ctx, std::vector<DocPara>& paras, const std::string& op,
+                        int& pages, JobContext& jc, std::string& msg)
 {
-    fz_context* ctx = CTX();
-    if (!ctx) return Result::failure(L"PDF engine failed to start.");
-    std::string sp = u8(path), op = u8(outPath), msg;
-    Result res;
-    bool ok = false;
-
-    std::string xml;
-    if (!zipReadEntry(sp, "word/document.xml", xml))
-        return Result::failure(L"This .docx could not be opened. Is it a valid Word file?");
-
-    // ---- tiny XML walk -------------------------------------------------
-    std::vector<DocPara> paras;
-    DocPara cur; bool inPara = false, inRun = false, inText = false;
-    DocRun run;
-    size_t i = 0;
-    while (i < xml.size()) {
-        size_t lt = xml.find('<', i);
-        if (lt == std::string::npos) break;
-        if (inText) {
-            size_t gt = xml.find('>', lt);   // we are inside <w:t ...> text
-            size_t et = xml.find("</w:t", lt);
-            size_t endTxt = (et == std::string::npos) ? gt : et;
-            if (lt > i) run.text += utf16Unescape(xml.substr(i, lt - i));
-            if (et != std::string::npos && (gt == std::string::npos || et < gt)) {
-                inText = false;
-                i = xml.find('>', et);
-                i = (i == std::string::npos) ? xml.size() : i + 1;
-                continue;
-            }
-            i = lt;   // some other tag inside text (rare): fall through
-        }
-        size_t gt = xml.find('>', lt);
-        if (gt == std::string::npos) break;
-        std::string tag = xml.substr(lt, gt - lt + 1);
-        bool close = tag.size() > 1 && tag[1] == '/';
-        std::string name = tag.substr(close ? 2 : 1);
-        size_t spc = name.find_first_of(" />");
-        if (spc != std::string::npos) name = name.substr(0, spc);
-        bool selfClose = tag.size() > 2 && tag[tag.size() - 2] == '/';
-
-        if (name == "w:p" && !close) { inPara = true; cur = DocPara(); }
-        else if (name == "w:p" && close) { if (inPara) paras.push_back(cur); inPara = false; }
-        else if (name == "w:r" && !close) { inRun = true; run = DocRun(); }
-        else if (name == "w:r" && close)  { if (inPara && !run.text.empty()) cur.runs.push_back(run); inRun = false; }
-        else if (inPara) {
-            if (name == "w:pStyle") cur.style = attrVal(tag, "w:val");
-            else if (name == "w:b"   && !close) run.bold = !(attrVal(tag, "w:val") == "0" || attrVal(tag, "w:val") == "false");
-            else if (name == "w:i"   && !close) run.ital = !(attrVal(tag, "w:val") == "0" || attrVal(tag, "w:val") == "false");
-            else if (name == "w:sz"  && !close) { int v = atoi(attrVal(tag, "w:val").c_str()); if (v > 0) run.size = v / 2.0f; }
-            else if (name == "w:t"   && !close) { inText = true; i = gt + 1; continue; }
-            else if (name == "w:tab") run.text += "    ";
-            else if (name == "w:br")  { if (attrVal(tag, "w:type") == "page") run.text += "\f"; else run.text += "\n"; }
-            else if (name == "w:cr")  run.text += "\n";
-        }
-        (void)inRun; (void)selfClose;
-        i = gt + 1;
-    }
-
-    if (paras.empty())
-        return Result::failure(L"The document has no paragraphs to convert.");
-
-    // ---- flow layout into a new PDF -------------------------------------
     fz_document_writer* wri = nullptr;
     fz_device* dev = nullptr;
     fz_font* fonts[4] = { nullptr, nullptr, nullptr, nullptr };   // R B I BI
-    int pages = 0;
+    bool ok = false;
     fz_var(wri); fz_var(dev); fz_var(pages);
     fz_try(ctx)
     {
@@ -2305,6 +2280,75 @@ Result wordToPdf(const std::wstring& path, const std::wstring& outPath, JobConte
     if (wri) fz_drop_document_writer(ctx, wri);
     for (auto f : fonts) if (f) fz_drop_font(ctx, f);
 
+    return ok;
+}
+
+Result wordToPdf(const std::wstring& path, const std::wstring& outPath, JobContext& jc)
+{
+    fz_context* ctx = CTX();
+    if (!ctx) return Result::failure(L"PDF engine failed to start.");
+    std::string sp = u8(path), op = u8(outPath), msg;
+    Result res;
+
+    std::string xml;
+    if (!zipReadEntry(sp, "word/document.xml", xml))
+        return Result::failure(L"This .docx could not be opened. Is it a valid Word file?");
+
+    // ---- tiny XML walk -------------------------------------------------
+    std::vector<DocPara> paras;
+    DocPara cur; bool inPara = false, inRun = false, inText = false;
+    DocRun run;
+    size_t i = 0;
+    while (i < xml.size()) {
+        size_t lt = xml.find('<', i);
+        if (lt == std::string::npos) break;
+        if (inText) {
+            size_t gt = xml.find('>', lt);   // we are inside <w:t ...> text
+            size_t et = xml.find("</w:t", lt);
+            size_t endTxt = (et == std::string::npos) ? gt : et;
+            if (lt > i) run.text += utf16Unescape(xml.substr(i, lt - i));
+            if (et != std::string::npos && (gt == std::string::npos || et < gt)) {
+                inText = false;
+                i = xml.find('>', et);
+                i = (i == std::string::npos) ? xml.size() : i + 1;
+                continue;
+            }
+            i = lt;   // some other tag inside text (rare): fall through
+        }
+        size_t gt = xml.find('>', lt);
+        if (gt == std::string::npos) break;
+        std::string tag = xml.substr(lt, gt - lt + 1);
+        bool close = tag.size() > 1 && tag[1] == '/';
+        std::string name = tag.substr(close ? 2 : 1);
+        size_t spc = name.find_first_of(" />");
+        if (spc != std::string::npos) name = name.substr(0, spc);
+        bool selfClose = tag.size() > 2 && tag[tag.size() - 2] == '/';
+
+        if (name == "w:p" && !close) { inPara = true; cur = DocPara(); }
+        else if (name == "w:p" && close) { if (inPara) paras.push_back(cur); inPara = false; }
+        else if (name == "w:r" && !close) { inRun = true; run = DocRun(); }
+        else if (name == "w:r" && close)  { if (inPara && !run.text.empty()) cur.runs.push_back(run); inRun = false; }
+        else if (inPara) {
+            if (name == "w:pStyle") cur.style = attrVal(tag, "w:val");
+            else if (name == "w:b"   && !close) run.bold = !(attrVal(tag, "w:val") == "0" || attrVal(tag, "w:val") == "false");
+            else if (name == "w:i"   && !close) run.ital = !(attrVal(tag, "w:val") == "0" || attrVal(tag, "w:val") == "false");
+            else if (name == "w:sz"  && !close) { int v = atoi(attrVal(tag, "w:val").c_str()); if (v > 0) run.size = v / 2.0f; }
+            else if (name == "w:t"   && !close) { inText = true; i = gt + 1; continue; }
+            else if (name == "w:tab") run.text += "    ";
+            else if (name == "w:br")  { if (attrVal(tag, "w:type") == "page") run.text += "\f"; else run.text += "\n"; }
+            else if (name == "w:cr")  run.text += "\n";
+        }
+        (void)inRun; (void)selfClose;
+        i = gt + 1;
+    }
+
+    if (paras.empty())
+        return Result::failure(L"The document has no paragraphs to convert.");
+
+    // ---- flow layout into a new PDF -------------------------------------
+    int pages = 0;
+    bool ok = layoutParas(ctx, paras, op, pages, jc, msg);
+
     if (!ok) {
         if (msg == "cancelled") return Result::failure(L"cancelled");
         return Result::failure(util::toWide(msg));
@@ -2316,4 +2360,229 @@ Result wordToPdf(const std::wstring& path, const std::wstring& outPath, JobConte
     res.pages = pages;
     return res;
 }
+} // namespace pdf
+
+// =====================================================================
+//  More document tools: image conversion, text/markdown -> PDF, PDF -> MD
+//  Author : Ragul S
+// =====================================================================
+namespace pdf {
+
+Result convertImage(const std::wstring& inPath, const std::wstring& outPath,
+                    bool toPng, int maxPx, int quality, JobContext& jc)
+{
+    fz_context* ctx = CTX();
+    if (!ctx) return Result::failure(L"PDF engine failed to start.");
+    std::string ip = u8(inPath), op = u8(outPath), msg;
+    fz_image* img = nullptr;
+    fz_pixmap* pix = nullptr;
+    bool ok = false;
+    Result res;
+    fz_var(img); fz_var(pix);
+    fz_try(ctx)
+    {
+        jc.report(20, L"Decoding image");
+        img = fz_new_image_from_file(ctx, ip.c_str());
+        int iw = 0, ih = 0;
+        pix = fz_get_pixmap_from_image(ctx, img, nullptr, nullptr, &iw, &ih);
+        if (!toPng && pix->alpha) {
+            fz_pixmap* p2 = fz_convert_pixmap(ctx, pix, fz_device_rgb(ctx), nullptr, nullptr, fz_default_color_params, 0);
+            if (p2) { fz_drop_pixmap(ctx, pix); pix = p2; }
+        }
+        int edge = std::max(pix->w, pix->h);
+        if (maxPx > 0 && edge > maxPx) {
+            float sc = (float)maxPx / (float)edge;
+            fz_pixmap* sc2 = fz_scale_pixmap(ctx, pix, 0, 0, (float)(int)(pix->w * sc), (float)(int)(pix->h * sc), nullptr);
+            if (sc2) { fz_drop_pixmap(ctx, pix); pix = sc2; }
+        }
+        jc.report(60, L"Encoding");
+        if (toPng) fz_save_pixmap_as_png(ctx, pix, op.c_str());
+        else       fz_save_pixmap_as_jpeg(ctx, pix, op.c_str(), quality);
+        ok = true;
+    }
+    fz_catch(ctx) { msg = u8(caughtError(ctx)); }
+    if (pix) fz_drop_pixmap(ctx, pix);
+    if (img) fz_drop_image(ctx, img);
+    if (!ok) {
+        if (msg == "cancelled") return Result::failure(L"cancelled");
+        return Result::failure(util::toWide(msg));
+    }
+    res.ok = true;
+    res.outputs.push_back(outPath);
+    res.bytesBefore = util::fileSize(inPath);
+    res.bytesAfter = util::fileSize(outPath);
+    return res;
+}
+
+// ---- markdown / plain text -> PDF ------------------------------------
+namespace {
+void mdInline(const std::string& line, float base, bool forceBold, std::vector<DocRun>& out)
+{
+    size_t i = 0;
+    bool bold = forceBold, ital = false;
+    std::string cur;
+    auto flush = [&]() { if (!cur.empty()) { DocRun r; r.text = cur; r.bold = bold; r.ital = ital; r.size = base; out.push_back(r); cur.clear(); } };
+    while (i < line.size()) {
+        if (line[i] == '*' && i + 1 < line.size() && line[i + 1] == '*') { flush(); bold = !bold; i += 2; continue; }
+        if (line[i] == '*' ) { flush(); ital = !ital; i += 1; continue; }
+        cur += line[i++];
+    }
+    flush();
+}
+} // namespace
+
+Result textToPdf(const std::wstring& path, const std::wstring& outPath, JobContext& jc)
+{
+    fz_context* ctx = CTX();
+    if (!ctx) return Result::failure(L"PDF engine failed to start.");
+    std::string op = u8(outPath), msg;
+    Result res;
+
+    std::string raw;
+    {
+        FILE* f = fopen(u8(path).c_str(), "rb");
+        if (!f) return Result::failure(L"The file could not be opened.");
+        fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+        if (n <= 0 || n > 50 * 1024 * 1024) { fclose(f); return Result::failure(L"The text file is empty or far too large."); }
+        raw.resize((size_t)n);
+        if (fread(&raw[0], 1, raw.size(), f) != raw.size()) { fclose(f); return Result::failure(L"Could not read the file."); }
+        fclose(f);
+    }
+    // UTF-16 LE/BE with BOM -> naive widen to utf8
+    if (raw.size() >= 2 && (unsigned char)raw[0] == 0xFF && (unsigned char)raw[1] == 0xFE) {
+        std::string u8s;
+        for (size_t i = 2; i + 1 < raw.size(); i += 2) {
+            int c = (unsigned char)raw[i] | ((unsigned char)raw[i + 1] << 8);
+            if (c == '\r') continue;
+            u8s += utf8FromRune(c == '\n' ? '\n' : c);
+        }
+        raw.swap(u8s);
+    } else if (raw.size() >= 3 && (unsigned char)raw[0] == 0xEF && (unsigned char)raw[1] == 0xBB) {
+        raw.erase(0, 3);
+    }
+
+    jc.report(30, L"Laying out the text");
+    std::vector<DocPara> paras;
+    DocPara cur; bool have = false;
+    auto flushP = [&]() { if (have) { paras.push_back(cur); cur = DocPara(); have = false; } };
+    size_t i = 0;
+    while (i < raw.size()) {
+        size_t nl = raw.find('\n', i);
+        std::string line = raw.substr(i, nl == std::string::npos ? std::string::npos : nl - i);
+        i = (nl == std::string::npos) ? raw.size() : nl + 1;
+        while (!line.empty() && (line.back() == '\r')) line.pop_back();
+        std::string t = util::trim(util::toWide(line)).empty() ? "" : line;
+        if (util::trim(util::toWide(line)).empty()) { flushP(); continue; }
+        if (line.rfind("### ", 0) == 0)      { flushP(); DocPara p; p.style = "Heading3"; DocRun r; r.text = line.substr(4); r.bold = true; r.size = 13; p.runs.push_back(r); paras.push_back(p); continue; }
+        if (line.rfind("## ", 0) == 0)       { flushP(); DocPara p; p.style = "Heading2"; DocRun r; r.text = line.substr(3); r.bold = true; r.size = 15; p.runs.push_back(r); paras.push_back(p); continue; }
+        if (line.rfind("# ", 0) == 0)        { flushP(); DocPara p; p.style = "Heading1"; DocRun r; r.text = line.substr(2); r.bold = true; r.size = 18; p.runs.push_back(r); paras.push_back(p); continue; }
+        if (line.rfind("- ", 0) == 0)        { if (!have) { have = true; } mdInline(std::string("\xE2\x80\xA2  ") + line.substr(2), 11, false, cur.runs); have = true; flushP(); continue; }
+        if (!have) have = true;
+        mdInline(line, 11, false, cur.runs);
+    }
+    flushP();
+    if (paras.empty()) return Result::failure(L"The text file has no content.");
+
+    int pages = 0;
+    bool ok = layoutParas(ctx, paras, op, pages, jc, msg);
+    if (!ok) {
+        if (msg == "cancelled") return Result::failure(L"cancelled");
+        return Result::failure(util::toWide(msg));
+    }
+    res.ok = true;
+    res.outputs.push_back(outPath);
+    res.bytesBefore = util::fileSize(path);
+    res.bytesAfter = util::fileSize(outPath);
+    res.pages = pages;
+    return res;
+}
+
+// ---- PDF -> Markdown ---------------------------------------------------
+Result pdfToMarkdown(const std::wstring& path, const std::wstring& password,
+                     const std::wstring& outPath, JobContext& jc)
+{
+    fz_context* ctx = CTX();
+    if (!ctx) return Result::failure(L"PDF engine failed to start.");
+    std::string sp = u8(path), pw = u8(password), op = u8(outPath), msg;
+    fz_document* doc = nullptr;
+    fz_output* out = nullptr;
+    bool ok = false;
+    int total = 0, blocks = 0;
+    Result res;
+    fz_var(doc); fz_var(out); fz_var(ok); fz_var(total);
+    fz_try(ctx)
+    {
+        doc = fz_open_document(ctx, sp.c_str());
+        if (fz_needs_password(ctx, doc)) {
+            if (pw.empty() || !fz_authenticate_password(ctx, doc, pw.c_str()))
+                fz_throw(ctx, FZ_ERROR_GENERIC, "needs password");
+        }
+        total = fz_count_pages(ctx, doc);
+        out = fz_new_output_with_path(ctx, op.c_str(), 0);
+        fz_stext_options sopts{};
+        sopts.flags = FZ_STEXT_DEHYPHENATE;
+
+        for (int i = 0; i < total; i++) {
+            if (jc.stop()) fz_throw(ctx, FZ_ERROR_GENERIC, "cancelled");
+            jc.report(i * 90 / std::max(1, total), util::fmt(L"Reading page %d of %d", i + 1, total));
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_stext_page* tp = nullptr;
+            fz_var(page); fz_var(tp);
+            fz_try(ctx) { tp = fz_new_stext_page_from_page(ctx, page, &sopts); }
+            fz_always(ctx) { if (page) fz_drop_page(ctx, page); }
+            fz_catch(ctx) { tp = nullptr; }
+            if (!tp) continue;
+            if (i > 0) fz_write_string(ctx, out, "\n---\n\n");
+
+            for (fz_stext_block* b = tp->first_block; b; b = b->next) {
+                if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
+                float maxSize = 0; int charCount = 0;
+                std::string para;
+                bool firstLine = true;
+                bool anyBold = true, allBold = true;
+                for (fz_stext_line* l = b->u.t.first_line; l; l = l->next) {
+                    if (!firstLine) para += " ";
+                    firstLine = false;
+                    for (fz_stext_char* ch = l->first_char; ch; ch = ch->next) {
+                        if (ch->c > 0) para += utf8FromRune(ch->c);
+                        maxSize = std::max(maxSize, ch->size);
+                        charCount++;
+                        bool bb = fz_font_is_bold(ctx, ch->font) != 0;
+                        if (bb) anyBold = true; else allBold = false;
+                    }
+                }
+                (void)anyBold;
+                std::string trimmed = u8(util::trim(util::toWide(para)));
+                if (trimmed.empty()) continue;
+                blocks++;
+                const char* prefix = "";
+                if (allBold && charCount > 0 && maxSize >= 17) prefix = "# ";
+                else if (allBold && charCount > 0 && maxSize >= 14) prefix = "## ";
+                else if (allBold && charCount > 0 && maxSize >= 12.5f) prefix = "### ";
+                fz_write_string(ctx, out, prefix);
+                fz_write_string(ctx, out, trimmed.c_str());
+                fz_write_string(ctx, out, "\n\n");
+            }
+            fz_drop_stext_page(ctx, tp);
+        }
+        fz_close_output(ctx, out);
+        ok = true;
+    }
+    fz_catch(ctx) { msg = u8(caughtError(ctx)); }
+    if (out) fz_drop_output(ctx, out);
+    if (doc) fz_drop_document(ctx, doc);
+    if (!ok) {
+        if (msg == "cancelled") return Result::failure(L"cancelled");
+        return Result::failure(util::toWide(msg));
+    }
+    if (blocks == 0)
+        return Result::failure(L"No selectable text was found. This PDF is probably a scan.");
+    res.ok = true;
+    res.outputs.push_back(outPath);
+    res.bytesBefore = util::fileSize(path);
+    res.bytesAfter = util::fileSize(outPath);
+    res.pages = total;
+    return res;
+}
+
 } // namespace pdf

@@ -1,5 +1,5 @@
 // =====================================================================
-//  PDFForge  -  pdfengine.h : the offline PDF engine
+//  MrDocx  -  pdfengine.h : the offline PDF engine
 //  A thin, exception-free C++ facade over the bundled MuPDF core.
 //  All work happens on a background thread; the UI only sees progress
 //  callbacks and a Result struct.
@@ -191,6 +191,18 @@ Result exportHtml(const std::wstring& path, const std::wstring& password,
 Result pdfToWord(const std::wstring& path, const std::wstring& password,
                  const std::wstring& outPath, JobContext& jc);
 Result wordToPdf(const std::wstring& path, const std::wstring& outPath, JobContext& jc);
+Result textToPdf(const std::wstring& path, const std::wstring& outPath, JobContext& jc);
+Result pdfToMarkdown(const std::wstring& path, const std::wstring& password,
+                     const std::wstring& outPath, JobContext& jc);
+Result convertImage(const std::wstring& inPath, const std::wstring& outPath,
+                    bool toPng, int maxPx, int quality, JobContext& jc);
+
+// Long-lived document handle so thumbnail workers open a file once, not per page.
+struct OpenDoc;
+OpenDoc* openDocument(const std::wstring& path, const std::wstring& password);
+void     closeDocument(OpenDoc* d);
+bool     openDocValid(OpenDoc* d);
+BitmapData renderPageDoc(OpenDoc* d, int pageIndex, int maxPixels, bool annotations);
 
 Result setMetadata(const std::wstring& path, const std::wstring& password,
                    const std::wstring& title, const std::wstring& author,
