@@ -106,11 +106,14 @@ bool inRect(RECT r, POINT p) { return r.right > r.left && r.bottom > r.top && Pt
 CapBtn captionAt(POINT p)
 {
     AppState& a = app();
-    if (inRect(a.btnClose, p)) return CAP_CLOSE;
-    if (inRect(a.btnMax, p))   return CAP_MAX;
-    if (inRect(a.btnMin, p))   return CAP_MIN;
-    if (inRect(a.btnTheme, p)) return CAP_THEME;
-    if (inRect(a.btnBack, p))  return CAP_BACK;
+    // computed from the title-bar rect, never from paint-time state, so the
+    // buttons answer even before the first paint or right after a view switch
+    views::CaptionRects c = views::captionRects(a.titleBarRect, a.view != ViewId::Home);
+    if (inRect(c.close, p)) return CAP_CLOSE;
+    if (inRect(c.max, p))   return CAP_MAX;
+    if (inRect(c.min, p))   return CAP_MIN;
+    if (inRect(c.theme, p)) return CAP_THEME;
+    if (inRect(c.back, p))  return CAP_BACK;
     return CAP_NONE;
 }
 
@@ -708,6 +711,34 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         g_mouseInside = false;
         forwardPaint(hwnd);
         return 0;
+
+    // belt & braces: if a Windows build ever routes a press on our bar as
+    // non-client, still treat it as a caption-button press
+    case WM_NCLBUTTONDOWN: {
+        POINT p = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+        ScreenToClient(hwnd, &p);
+        CapBtn b = captionAt(p);
+        if (b != CAP_NONE) {
+            g_capPressed = b;
+            SetCapture(hwnd);
+            return 0;
+        }
+        break;
+    }
+    case WM_NCLBUTTONUP: {
+        if (g_capPressed != CAP_NONE) {
+            POINT p = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
+            ScreenToClient(hwnd, &p);
+            CapBtn pressed = g_capPressed;
+            g_capPressed = CAP_NONE;
+            g_selfRelease = true;
+            ReleaseCapture();
+            g_selfRelease = false;
+            if (captionAt(p) == pressed) actOnCaption(hwnd, pressed);
+            return 0;
+        }
+        break;
+    }
 
     case WM_LBUTTONDOWN: {
         POINT p = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };

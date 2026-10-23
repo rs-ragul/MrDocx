@@ -96,6 +96,22 @@ static void captionButton(Frame& f, RECT r, IconId icon, bool isClose, RECT* sto
     drawIcon(f.dc, icon, ib, fg, (float)std::max(1, S(1)));
 }
 
+CaptionRects captionRects(const RECT& tb, bool backVisible)
+{
+    CaptionRects c{};
+    int h = tb.bottom - tb.top;
+    int cw = S(46);
+    c.close = RECT{ tb.right - cw, tb.top, tb.right, tb.bottom };
+    c.max   = RECT{ tb.right - cw * 2, tb.top, tb.right - cw, tb.bottom };
+    c.min   = RECT{ tb.right - cw * 3, tb.top, tb.right - cw * 2, tb.bottom };
+    c.theme = RECT{ tb.right - cw * 4, tb.top, tb.right - cw * 3, tb.bottom };
+    if (backVisible) {
+        int x = tb.left + S(14);
+        c.back = RECT{ x, tb.top + (h - S(28)) / 2, x + S(28), tb.top + (h + S(28)) / 2 };
+    }
+    return c;
+}
+
 void paintTitleBar(Frame& f, RECT area)
 {
     HBRUSH b = CreateSolidBrush(f.pal.titleBar);
@@ -106,14 +122,15 @@ void paintTitleBar(Frame& f, RECT area)
     AppState& a = app();
 
     // left: breadcrumb
-    int x = area.left + S(14);
     int h = area.bottom - area.top;
-    RECT crumb = { x, area.top, area.left + S(420), area.bottom };
+    CaptionRects cap = captionRects(area, a.view != ViewId::Home);
+    a.titleBarRect = area;
 
     if (a.view == ViewId::Tool) {
         const ToolDef& def = toolDef(a.tool);
         // back button
-        RECT back = { x, area.top + (h - S(28)) / 2, x + S(28), area.top + (h + S(28)) / 2 };
+        RECT back = cap.back;
+        int x = back.right + S(6);
         POINT m = f.mouse;
         bool hot = f.mouseInside && PtInRect(&back, m);
         if (hot) ui::fillRect(f.dc, back, f.pal.titleBtnHover, S(6));
@@ -136,8 +153,8 @@ void paintTitleBar(Frame& f, RECT area)
         ui::drawText(f.dc, def.name, RECT{ x, area.top, area.right - S(200), area.bottom },
                      f.pal.titleText, fontUI(13, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     } else if (a.view == ViewId::About) {
-        a.btnBack = RECT{ 0, 0, 0, 0 };
-        RECT back = { x, area.top + (h - S(28)) / 2, x + S(28), area.top + (h + S(28)) / 2 };
+        RECT back = cap.back;
+        int x = back.right + S(6);
         POINT m = f.mouse;
         if (f.mouseInside && PtInRect(&back, m)) ui::fillRect(f.dc, back, f.pal.titleBtnHover, S(6));
         int is = S(15);
@@ -147,23 +164,15 @@ void paintTitleBar(Frame& f, RECT area)
         x += S(34);
         ui::drawText(f.dc, L"About MrDocx", RECT{ x, area.top, area.right - S(200), area.bottom },
                      f.pal.titleText, fontUI(13, FW_SEMIBOLD), DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    } else {
-        a.btnBack = RECT{ 0, 0, 0, 0 };
-        (void)crumb;
     }
 
-    // right: theme toggle + caption buttons
+    // right: theme toggle + caption buttons (same geometry as the hit tester)
     int cw = S(46);
-    RECT rc;
-    rc = RECT{ area.right - cw, area.top, area.right, area.bottom };
-    captionButton(f, rc, ICON_CLOSE, true, &a.btnClose);
-    rc = RECT{ area.right - cw * 2, area.top, area.right - cw, area.bottom };
-    captionButton(f, rc, a.maximized ? ICON_RESTORE : ICON_MAXIMIZE, false, &a.btnMax);
-    rc = RECT{ area.right - cw * 3, area.top, area.right - cw * 2, area.bottom };
-    captionButton(f, rc, ICON_MINIMIZE, false, &a.btnMin);
-
-    rc = RECT{ area.right - cw * 4, area.top, area.right - cw * 3, area.bottom };
+    captionButton(f, cap.close, ICON_CLOSE, true, &a.btnClose);
+    captionButton(f, cap.max, a.maximized ? ICON_RESTORE : ICON_MAXIMIZE, false, &a.btnMax);
+    captionButton(f, cap.min, ICON_MINIMIZE, false, &a.btnMin);
     {
+        RECT rc = cap.theme;
         POINT m = f.mouse;
         bool hot = f.mouseInside && PtInRect(&rc, m);
         if (hot) ui::fillRect(f.dc, rc, f.pal.titleBtnHover, S(6));
@@ -173,6 +182,7 @@ void paintTitleBar(Frame& f, RECT area)
                  hot ? f.pal.text : f.pal.textDim);
         a.btnTheme = rc;
     }
+    a.btnBack = cap.back;
 }
 
 // ---------------------------------------------------------------------

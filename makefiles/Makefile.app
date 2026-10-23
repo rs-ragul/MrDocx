@@ -13,7 +13,7 @@ LIBS = -L. -lpdfengine -lgdi32 -luser32 -lcomctl32 -lcomdlg32 -lole32 -loleaut32
 
 $(TARGET): $(APP_OBJS) $(RC_OBJ) libpdfengine.a
 	@mkdir -p ../bin
-	$(CXX) $(APP_CXXFLAGS) -municode -static -o $@ $(APP_OBJS) $(RC_OBJ) $(LIBS) -Wl,--gc-sections
+	$(CXX) $(APP_CXXFLAGS) -municode -mwindows -static -o $@ $(APP_OBJS) $(RC_OBJ) $(LIBS) -Wl,--gc-sections
 	@echo APP_DONE
 
 $(OBJDIR)/%.o: ../src/%.cpp

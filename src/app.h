@@ -235,6 +235,7 @@ struct AppState {
 
     // caption button hit areas (filled during paint)
     RECT btnMin = {}, btnMax = {}, btnClose = {}, btnTheme = {}, btnBack = {};
+    RECT titleBarRect = {};
     bool maximized = false;
     bool active = true;
 
@@ -277,6 +278,8 @@ void paintTool(Frame& f, RECT area);
 void paintAbout(Frame& f, RECT area);
 void paintSidebar(Frame& f, RECT area);
 void paintTitleBar(Frame& f, RECT area);
+struct CaptionRects { RECT back, theme, min, max, close; };
+CaptionRects captionRects(const RECT& tb, bool backVisible);
 }
 
 // ---------------------------------------------------------------------
